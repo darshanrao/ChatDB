@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import pandas as pd
 import io
 import os
+from utils import *
 
 # Load environment variables
 load_dotenv()
@@ -29,7 +30,6 @@ try:
     
     # Get database reference
     db = client[os.getenv('DB_NAME')]
-    
 except Exception as e:
     print(f"Error connecting to MongoDB: {e}")
 
@@ -88,5 +88,48 @@ def upload_data():
             "error": str(e)
         }), 500
 
+@app.route('/api/query', methods=['POST'])
+def query_data():
+    try:
+        # Get request data
+        data = request.get_json()
+        
+        # Validate required fields
+        if not data or 'query' not in data:
+            return jsonify({
+                "error": "Missing required fields. Please provide query string"
+            }), 400
+            
+        query_str = data['query']
+        
+        try:
+            collection_name, pipeline = extract_mongo_query(query_str)
+        except ValueError as e:
+            return jsonify({
+                "error": str(e)
+            }), 400
+            
+        # Get collection reference
+        collection = db[collection_name]
+        
+        # Execute aggregation pipeline
+        results = list(collection.aggregate(pipeline))
+        
+        # Convert ObjectId to string for JSON serialization
+        for doc in results:
+            if '_id' in doc:
+                doc['_id'] = str(doc['_id'])
+        
+        return jsonify({
+            "results": results,
+            "count": len(results)
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "error": str(e)
+        }), 500
+
+        
 if __name__ == '__main__':
     app.run(debug=True)
