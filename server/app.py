@@ -33,14 +33,14 @@ try:
 except Exception as e:
     print(f"Error connecting to MongoDB: {e}")
 
-@app.route('/query', methods=['POST'])
-def query_data():
+# @app.route('/query', methods=['POST'])
+# def query_data():
     
-    result = 'Hello'
-    #Logic to map user query to database function
-    #call that function and return output
+#     result = 'Hello'
+#     #Logic to map user query to database function
+#     #call that function and return output
     
-    return result
+#     return result
 
 
 # Sample route
