@@ -9,12 +9,47 @@ import io
 import os
 from utils import *
 
+import time
+import pymysql
+from sqlalchemy import create_engine
+
+
 # Load environment variables
 load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
+
+
+
+# Connect to RDS with retries
+max_retries = 3
+retry_delay = 5  # seconds
+connection = None
+
+for attempt in range(max_retries):
+    try:
+        connection = pymysql.connect(
+            host=os.getenv('RDS_HOST'),
+            port=int(os.getenv('RDS_PORT')), 
+            user=os.getenv('RDS_USER'),
+            password=os.getenv('RDS_PASSWORD'),
+            database=os.getenv('RDS_DATABASE'),
+            connect_timeout=10,  # Add timeout parameter
+            read_timeout=10,
+            write_timeout=10
+        )
+        print("Connected to RDS successfully!")
+        break
+    except pymysql.Error as e:
+        print(f"Attempt {attempt + 1}/{max_retries} failed: {e}")
+        if attempt < max_retries - 1:
+            print(f"Retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
+        else:
+            print("Maximum retry attempts reached. Could not connect to database.")
+
 
 # MongoDB connection
 try:
@@ -41,6 +76,8 @@ except Exception as e:
 #     #call that function and return output
     
 #     return result
+
+
 
 
 # Sample route
