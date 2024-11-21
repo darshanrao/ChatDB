@@ -10,7 +10,7 @@ Now just used for taking note
 Sample queries
 
 curl -X POST \
-  http://127.0.0.1:5000/api/query \
+  http://127.0.0.1:5000/api/query-mongodb \
   -H 'Content-Type: application/json' \
   -d '{
     "query": "db.students.aggregate([{ \"$group\": { \"_id\": \"$Major\", \"studentCount\": { \"$sum\": 1 } } }])"
@@ -18,7 +18,7 @@ curl -X POST \
 
 
 curl -X POST \
-  http://127.0.0.1:5000/api/query \
+  http://127.0.0.1:5000/api/query-mongodb \
   -H 'Content-Type: application/json' \
   -d '{
     "query": "db.students.aggregate([{ \"$lookup\": { \"from\": \"enrollments\", \"localField\": \"StudentID\", \"foreignField\": \"StudentID\", \"as\": \"enrollments\" } }, { \"$lookup\": { \"from\": \"courses\", \"localField\": \"enrollments.CourseID\", \"foreignField\": \"CourseID\", \"as\": \"courses\" } }, { \"$match\": { \"$expr\": { \"$in\": [\"$AdvisorName\", \"$courses.InstructorName\"] } } }, { \"$project\": { \"FirstName\": 1, \"LastName\": 1, \"AdvisorName\": 1 } }])"

@@ -14,25 +14,21 @@ import pymysql
 from sqlalchemy import create_engine
 
 
-# Load environment variables
+
 load_dotenv()
 
-# Initialize Flask app
+
 app = Flask(__name__)
 CORS(app)
 
 
 
-# Connect to RDS with retries
-max_retries = 3
-retry_delay = 5  # seconds
 connection = None
 
-for attempt in range(max_retries):
-    try:
+try:
         connection = pymysql.connect(
             host=os.getenv('RDS_HOST'),
-            port=int(os.getenv('RDS_PORT')), 
+        port=int(os.getenv('RDS_PORT')), 
             user=os.getenv('RDS_USER'),
             password=os.getenv('RDS_PASSWORD'),
             database=os.getenv('RDS_DATABASE'),
@@ -41,87 +37,166 @@ for attempt in range(max_retries):
             write_timeout=10
         )
         print("Connected to RDS successfully!")
-        break
-    except pymysql.Error as e:
-        print(f"Attempt {attempt + 1}/{max_retries} failed: {e}")
-        if attempt < max_retries - 1:
-            print(f"Retrying in {retry_delay} seconds...")
-            time.sleep(retry_delay)
-        else:
-            print("Maximum retry attempts reached. Could not connect to database.")
+except pymysql.Error as e:
+    print(f"Could not connect to database: {e}")
 
-
-# MongoDB connection
-try:
-    # Get MongoDB URI from environment variables
-    uri = os.getenv('MONGODB_URI')
-    
-    # Create MongoDB client with Server API
-    client = MongoClient(uri, server_api=ServerApi('1'))
-    
-    # Test connection with ping
-    client.admin.command('ping')
-    print("Successfully connected to MongoDB!")
-    
-    # Get database reference
-    db = client[os.getenv('DB_NAME')]
-except Exception as e:
-    print(f"Error connecting to MongoDB: {e}")
-
-# @app.route('/query', methods=['POST'])
-# def query_data():
-    
-#     result = 'Hello'
-#     #Logic to map user query to database function
-#     #call that function and return output
-    
-#     return result
-
-
-
-
-# Sample route
-@app.route('/api/test', methods=['GET'])
-def test_route():
+# Uploads CSV file data to MySQL RDS database
+# curl -X POST -F "file=@data/courses.csv" http://127.0.0.1:5000/api/upload-mysql
+@app.route('/api/upload-mysql', methods=['POST'])
+def upload_to_rds():
     try:
-        # Test MongoDB connection with a simple query
-        test_collection = db['test']
-        result = test_collection.find_one()
+
+        if 'file' not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
+        
+        file = request.files['file']
+    
+        if file.filename == '' or not file.filename.endswith('.csv'):
+            return jsonify({"error": "Invalid file format. Please upload a CSV file"}), 400
+
+        table_name = file.filename.rsplit('.', 1)[0]
+
+
+        df = pd.read_csv(io.StringIO(file.stream.read().decode("UTF8")))
+
+        columns = []
+        for column, dtype in df.dtypes.items():
+            if dtype == 'int64':
+                sql_type = 'INT'
+            elif dtype == 'float64':
+                sql_type = 'FLOAT'
+            else:
+                sql_type = 'VARCHAR(255)'
+            columns.append(f"`{column}` {sql_type}")
+            
+        create_table_query = f"""
+        CREATE TABLE IF NOT EXISTS `{table_name}` (
+            {', '.join(columns)}
+        )
+        """
+
+        placeholders = ', '.join(['%s'] * len(df.columns))
+        insert_query = f"INSERT INTO `{table_name}` ({', '.join([f'`{col}`' for col in df.columns])}) VALUES ({placeholders})"
+
+        try:
+            with connection.cursor() as cursor:
+    
+                cursor.execute(create_table_query)
+                
+                cursor.executemany(insert_query, df.values.tolist())
+                
+                connection.commit()
+
+            return jsonify({
+                "message": f"Successfully uploaded data to table: {table_name}",
+                "rows_inserted": len(df)
+            }), 200
+
+        except pymysql.Error as e:
+            connection.rollback()
+            return jsonify({"error": f"Database error: {str(e)}"}), 500
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Sample curl command
+"""
+curl -X POST http://127.0.0.1:5000/api/query-mysql \
+  -d "SELECT Major, COUNT(*) as studentCount FROM students GROUP BY Major"
+"""
+    
+@app.route('/api/query-mysql', methods=['POST'])
+def query_mysql():
+    try:
+        # Get raw data from request body
+        query_str = request.get_data(as_text=True)
+
+        if not query_str:
+            return jsonify({
+                "error": "Missing query string in request body"
+            }), 400
+
+        with connection.cursor() as cursor:
+            cursor.execute(query_str)
+            
+            columns = [desc[0] for desc in cursor.description]
+            rows = cursor.fetchall()
+            results = [dict(zip(columns, row)) for row in rows]
+            
+            return jsonify({
+                "results": results,
+                "count": len(results)
+            }), 200
+            
+    except pymysql.Error as e:
         return jsonify({
-            "message": "API is working!",
-            "mongodb_test": result
-        }), 200
+            "error": f"Database error: {str(e)}"
+        }), 500
+        
     except Exception as e:
         return jsonify({
             "error": str(e)
         }), 500
+@app.route('/api/tables-mysql/<table_name>', methods=['GET'])
+def get_table_data(table_name):
+    try:
+        with connection.cursor() as cursor:
+
+            cursor.execute(f"SELECT COUNT(*) FROM `{table_name}`")
+            count = cursor.fetchone()[0]
+            
+            cursor.execute(f"SELECT * FROM `{table_name}` LIMIT 10")
+            columns = [desc[0] for desc in cursor.description]
+            rows = cursor.fetchall()
+            
+            data = [dict(zip(columns, row)) for row in rows]
+            
+            return jsonify({
+                "table_name": table_name,
+                "total_rows": count,
+                "sample_data": data
+            }), 200
+            
+    except pymysql.Error as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    
+# MongoDB connection
+try:
+
+    uri = os.getenv('MONGODB_URI')
+
+    client = MongoClient(uri, server_api=ServerApi('1'))
+
+    client.admin.command('ping')
+    print("Successfully connected to MongoDB!")
+    
+    db = client[os.getenv('DB_NAME')]
+except Exception as e:
+    print(f"Error connecting to MongoDB: {e}")
+
+
 
 # Upload endpoint
 # Test using curl:
-# curl -X POST -F "file=@data/courses.csv" http://127.0.0.1:5000/api/upload
-@app.route('/api/upload', methods=['POST'])
+# curl -X POST -F "file=@data/courses.csv" http://127.0.0.1:5000/api/upload-mongodb
+@app.route('/api/upload-mongodb', methods=['POST'])
 def upload_data():
     try:
-        # Check if file is present in request
+
         if 'file' not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
         
         file = request.files['file']
         
-        # Check if file has a name and is CSV
         if file.filename == '' or not file.filename.endswith('.csv'):
             return jsonify({"error": "Invalid file format. Please upload a CSV file"}), 400
 
-        # Get collection name from filename (remove .csv extension)
         collection_name = file.filename.rsplit('.', 1)[0]
-        
-        # Read CSV file
+
         csv_data = pd.read_csv(io.StringIO(file.stream.read().decode("UTF8")))
         
-        # Convert DataFrame to list of dictionaries
         records = csv_data.to_dict('records')
-        
-        # Insert into MongoDB
+
         collection = db[collection_name]
         collection.insert_many(records)
         
@@ -135,34 +210,35 @@ def upload_data():
             "error": str(e)
         }), 500
 
-@app.route('/api/query', methods=['POST'])
+# Executes MongoDB aggregation pipeline query and returns results        
+"""
+curl -X POST http://127.0.0.1:5000/api/query-mongodb \
+-d 'db.students.aggregate([{ "$group": { "_id": "$Major", "studentCount": { "$sum": 1 } } }])'
+"""
+@app.route('/api/query-mongodb', methods=['POST'])
 def query_data():
     try:
-        # Get request data
-        data = request.get_json()
-        
-        # Validate required fields
-        if not data or 'query' not in data:
+        data = request.get_data().decode('utf-8')
+
+        if not data:
             return jsonify({
                 "error": "Missing required fields. Please provide query string"
             }), 400
             
-        query_str = data['query']
+        # Remove escaped quotes if present
+        query_str = data.replace('\\"', '"')
         
         try:
-            collection_name, pipeline = extract_mongo_query(query_str)
+            collection_name, pipeline = extract_mongo_query(query_str) 
         except ValueError as e:
             return jsonify({
                 "error": str(e)
             }), 400
             
-        # Get collection reference
         collection = db[collection_name]
         
-        # Execute aggregation pipeline
         results = list(collection.aggregate(pipeline))
         
-        # Convert ObjectId to string for JSON serialization
         for doc in results:
             if '_id' in doc:
                 doc['_id'] = str(doc['_id'])
@@ -176,7 +252,6 @@ def query_data():
         return jsonify({
             "error": str(e)
         }), 500
-
         
 if __name__ == '__main__':
     app.run(debug=True)
