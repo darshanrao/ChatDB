@@ -73,3 +73,43 @@ function displayTable(data) {
   table.appendChild(tbody);
   resultsDiv.appendChild(table);
 }
+
+const uploadBtn = document.getElementById('upload-btn');
+const uploadFileInput = document.getElementById('upload-file');
+
+uploadBtn.addEventListener('click', () => {
+  uploadFileInput.click(); // Trigger the hidden file input
+});
+
+uploadFileInput.addEventListener('change', () => {
+  const file = uploadFileInput.files[0];
+  if (!file) return;
+
+  // Validate the file type
+  if (!file.name.endsWith('.csv')) {
+    addMessage('Error: Please upload a valid CSV file.', 'bot-message');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  // Call Flask backend to upload the file
+  fetch('api/upload-mysql', {
+    method: 'POST',
+    body: formData,
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Failed to upload file.');
+      }
+      return response.json();
+    })
+    .then(data => {
+      addMessage(data.message || 'File uploaded successfully!', 'bot-message');
+    })
+    .catch(err => {
+      addMessage('Error: Could not upload file.', 'bot-message');
+      console.error(err);
+    });
+});

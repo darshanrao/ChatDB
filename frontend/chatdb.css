@@ -63,8 +63,20 @@ body {
 }
 
 #send-btn {
-    margin-left: 10px;
+    margin: 10px;
     padding: 10px 15px;
+    background-color: #0084ff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#upload-btn{
+    /* margin-left: 10px; */
+    padding: 10px 15px;
+    margin-top: 10px;
+    height: 37px;
     background-color: #0084ff;
     color: white;
     border: none;
@@ -111,4 +123,8 @@ table td {
 
 table th {
     background-color: #f4f4f4;
+}
+
+#upload-file {
+    display: none;
 }
