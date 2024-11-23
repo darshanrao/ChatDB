@@ -30,7 +30,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ChatDB</title>
-    <link rel="stylesheet" href="chatdb.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatdb.css') }}">
 </head>
 
 <body>
@@ -49,7 +49,7 @@
         <h2>Query Results </h2>
         <div id="results"></div>
     </div>
-    <script src="chatdb.js"></script>
+    <script src="{{ url_for('static', filename='js/chatdb.js') }}"></script>
 </body>
 
 </html>
