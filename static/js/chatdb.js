@@ -4,25 +4,32 @@ const userInput = document.getElementById('user-input');
 const messages = document.getElementById('messages');
 
 sendBtn.addEventListener('click', () => {
-    const query = userInput.value.trim();
-    if (!query) return;
+  const query = userInput.value.trim();
+  if (!query) return;
 
-    addMessage(query, 'user-message');
-    userInput.value = '';
+  try {
+      // Parse the input as JSON
+      const queryData = JSON.parse(query);
+      
+      addMessage(query, 'user-message');
+      userInput.value = '';
 
-    // Call Flask backend
-    fetch('/api/query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query })
-    })
-    .then(response => response.json())
-    .then(data => {
-        addMessage(data.response, 'bot-message');
-        displayTable(data.results);
-    })
-    .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));
+      // Call Flask backend with MongoDB query endpoint
+      fetch('/api/query-mongodb', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(queryData)
+      })
+      .then(response => response.json())
+      .then(data => {
+          addMessage(data.response, 'bot-message'); 
+          displayTable(data.results);
+      })
+      .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));
 
+  } catch (err) {
+      addMessage('Error: Please provide a valid JSON query format.', 'bot-message');
+  }
 });
 
 function addMessage(text, className) {
