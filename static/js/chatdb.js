@@ -78,38 +78,56 @@ const uploadBtn = document.getElementById('upload-btn');
 const uploadFileInput = document.getElementById('upload-file');
 
 uploadBtn.addEventListener('click', () => {
-  uploadFileInput.click(); // Trigger the hidden file input
+  uploadFileInput.click();
 });
 
-uploadFileInput.addEventListener('change', () => {
-  const file = uploadFileInput.files[0];
-  if (!file) return;
+// Only allow directory selection
+uploadFileInput.setAttribute('webkitdirectory', '');
 
-  // Validate the file type
-  if (!file.name.endsWith('.csv')) {
-    addMessage('Error: Please upload a valid CSV file.', 'bot-message');
+uploadFileInput.addEventListener('change', async () => {
+  const files = Array.from(uploadFileInput.files);
+  if (!files.length) return;
+
+  // Get folder name from the first file's path
+  const folderPath = files[0].webkitRelativePath;
+  const dbName = folderPath.split('/')[0]; // Get the root folder name
+  
+  // Create single FormData for all files
+  const formData = new FormData();
+  formData.append('db_name', dbName);
+
+  // Add all CSV files to the same FormData
+  let csvCount = 0;
+  files.forEach(file => {
+    if (file.name.endsWith('.csv')) {
+      formData.append('files', file);
+      csvCount++;
+    } else {
+      addMessage(`Skipping ${file.name}: Not a CSV file`, 'bot-message');
+    }
+  });
+
+  if (csvCount === 0) {
+    addMessage('No CSV files found in the selected folder', 'bot-message');
     return;
   }
 
-  const formData = new FormData();
-  formData.append('file', file);
+  addMessage(`Processing folder "${dbName}" with ${csvCount} CSV files...`, 'bot-message');
 
-  // Call Flask backend to upload the file
-  fetch('api/upload-mysql', {
-    method: 'POST',
-    body: formData,
-  })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error('Failed to upload file.');
-      }
-      return response.json();
-    })
-    .then(data => {
-      addMessage(data.message || 'File uploaded successfully!', 'bot-message');
-    })
-    .catch(err => {
-      addMessage('Error: Could not upload file.', 'bot-message');
-      console.error(err);
+  try {
+    const response = await fetch('api/upload-mongodb', {
+      method: 'POST',
+      body: formData,
     });
+
+    if (!response.ok) {
+      throw new Error('Failed to upload files');
+    }
+
+    const data = await response.json();
+    addMessage(data.message || `Successfully uploaded ${csvCount} tables to database "${dbName}"`, 'bot-message');
+  } catch (err) {
+    addMessage(`Error: Could not upload tables to database "${dbName}".`, 'bot-message');
+    console.error(err);
+  }
 });
