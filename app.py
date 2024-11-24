@@ -44,14 +44,23 @@ CORS(app)
 #     print(f"Could not connect to database: {e}")
 
 
-def get_RDS_database_connection():
+def get_RDS_connection_without_db():
     try:
+        # Get clean values from environment variables
+        host = os.getenv('RDS_HOST')
+        port = int(os.getenv('RDS_PORT', '3306').split('#')[0].strip())
+        user = os.getenv('RDS_USER')
+        password = os.getenv('RDS_PASSWORD')
+        
+        # Verify all required environment variables are present
+        if not all([host, user, password]):
+            raise ValueError("Missing required RDS configuration. Please check your .env file.")
+        
         connection = pymysql.connect(
-            host=os.getenv('RDS_HOST'),
-            port=int(os.getenv('RDS_PORT')), 
-            user=os.getenv('RDS_USER'),
-            password=os.getenv('RDS_PASSWORD'),
-            database=os.getenv('RDS_DATABASE'),
+            host=host,
+            port=port,
+            user=user,
+            password=password,
             connect_timeout=10,
             read_timeout=10,
             write_timeout=10
@@ -59,85 +68,153 @@ def get_RDS_database_connection():
         print("Connected to RDS successfully!")
         return connection
     except pymysql.Error as e:
-        print(f"Could not connect to database: {e}")
+        print(f"Could not connect to RDS: {e}")
+        raise
+    except ValueError as e:
+        print(f"Configuration error: {e}")
         raise
 
-# Uploads CSV file data to MySQL RDS database
-# curl -X POST -F "file=@data/courses.csv" http://127.0.0.1:5000/api/upload-mysql
+def create_and_use_database(db_name):
+    connection = get_RDS_connection_without_db()
+    try:
+        with connection.cursor() as cursor:
+            # Create database if not exists
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
+            # Use the database
+            cursor.execute(f"USE {db_name}")
+            connection.commit()
+        return connection
+    except pymysql.Error as e:
+        if connection:
+            connection.close()
+        print(f"Error creating database: {e}")
+        raise
+
+# Upload endpoint for MySQL RDS
+# Test using curl:
+"""
+curl -X POST \
+  -F "db_name=database2" \
+  -F "files=@data/courses.csv" \
+  -F "files=@data/enrollments.csv" \
+  -F "files=@data/students.csv" \
+  http://127.0.0.1:5000/api/upload-mysql
+"""
 @app.route('/api/upload-mysql', methods=['POST'])
 def upload_to_rds():
+    connection = None
     try:
-        if 'file' not in request.files:
-            return jsonify({"error": "No file uploaded"}), 400
-        file = request.files['file']
-        if file.filename == '' or not file.filename.endswith('.csv'):
-            return jsonify({"error": "Invalid file format. Please upload a CSV file"}), 400
-
-        connection = get_RDS_database_connection()
-        table_name = file.filename.rsplit('.', 1)[0]
-
-
-        df = pd.read_csv(io.StringIO(file.stream.read().decode("UTF8")))
-
-        columns = []
-        for column, dtype in df.dtypes.items():
-            if dtype == 'int64':
-                sql_type = 'INT'
-            elif dtype == 'float64':
-                sql_type = 'FLOAT'
-            else:
-                sql_type = 'VARCHAR(255)'
-            columns.append(f"`{column}` {sql_type}")
+        if 'files' not in request.files:
+            return jsonify({"error": "No files uploaded"}), 400
             
-        create_table_query = f"""
-        CREATE TABLE IF NOT EXISTS `{table_name}` (
-            {', '.join(columns)}
-        )
-        """
+        if 'db_name' not in request.form:
+            return jsonify({"error": "Database name not provided"}), 400
 
-        placeholders = ', '.join(['%s'] * len(df.columns))
-        insert_query = f"INSERT INTO `{table_name}` ({', '.join([f'`{col}`' for col in df.columns])}) VALUES ({placeholders})"
+        files = request.files.getlist('files')
+        db_name = request.form['db_name']
+        
+        if not files:
+            return jsonify({"error": "No files selected"}), 400
 
-        try:
-            with connection.cursor() as cursor:
-    
-                cursor.execute(create_table_query)
+        # Create and connect to the specified database
+        connection = create_and_use_database(db_name)
+        
+        upload_results = []
+        
+        for file in files:
+            if file.filename == '' or not file.filename.endswith('.csv'):
+                upload_results.append({
+                    "filename": file.filename,
+                    "status": "error",
+                    "message": "Invalid file format. Please upload a CSV file"
+                })
+                continue
+
+            try:
+                table_name = file.filename.rsplit('.', 1)[0]
+                df = pd.read_csv(io.StringIO(file.stream.read().decode("UTF8")))
+
+                # Create table schema based on DataFrame
+                columns = []
+                for column, dtype in df.dtypes.items():
+                    if dtype == 'int64':
+                        sql_type = 'INT'
+                    elif dtype == 'float64':
+                        sql_type = 'FLOAT'
+                    else:
+                        sql_type = 'VARCHAR(255)'
+                    columns.append(f"`{column}` {sql_type}")
                 
-                cursor.executemany(insert_query, df.values.tolist())
-                
-                connection.commit()
-            connection.close()
-            return jsonify({
-                "message": f"Successfully uploaded data to table: {table_name}",
-                "rows_inserted": len(df)
-            }), 200
+                create_table_query = f"""
+                CREATE TABLE IF NOT EXISTS `{table_name}` (
+                    {', '.join(columns)}
+                )
+                """
 
-        except pymysql.Error as e:
-            connection.rollback()
-            connection.close()
-            return jsonify({"error": f"Database error: {str(e)}"}), 500
+                placeholders = ', '.join(['%s'] * len(df.columns))
+                insert_query = f"INSERT INTO `{table_name}` ({', '.join([f'`{col}`' for col in df.columns])}) VALUES ({placeholders})"
+
+                with connection.cursor() as cursor:
+                    cursor.execute(create_table_query)
+                    cursor.executemany(insert_query, df.values.tolist())
+                    connection.commit()
+
+                upload_results.append({
+                    "filename": file.filename,
+                    "status": "success",
+                    "table": table_name,
+                    "rows_inserted": len(df)
+                })
+
+            except Exception as e:
+                connection.rollback()
+                upload_results.append({
+                    "filename": file.filename,
+                    "status": "error",
+                    "message": str(e)
+                })
+
+        return jsonify({
+            "message": f"Upload process completed to database: {db_name}",
+            "results": upload_results
+        }), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": str(e)
+        }), 500
+    finally:
+        if connection:
+            connection.close()
+            print("RDS connection closed")
 
 # Sample curl command
+    
 """
 curl -X POST http://127.0.0.1:5000/api/query-mysql \
-  -d "SELECT Major, COUNT(*) as studentCount FROM students GROUP BY Major"
+-H "Content-Type: application/json" \
+-d '{
+    "db_name": "database2", 
+    "query": "SELECT Major, COUNT(*) as studentCount FROM students GROUP BY Major"
+}'
 """
     
 @app.route('/api/query-mysql', methods=['POST'])
 def query_mysql():
+    connection = None
     try:
-        # Get raw data from request body 
-        query_str = request.get_data(as_text=True)
+        data = request.get_json()
 
-        if not query_str:
+        if not data or 'query' not in data or 'db_name' not in data:
             return jsonify({
-                "error": "Missing query string in request body"
+                "error": "Missing required fields. Please provide db_name and query string"
             }), 400
 
-        connection = get_RDS_database_connection()
+        query_str = data['query']
+        db_name = data['db_name']
+
+        # Pass database name to connection function
+        connection = create_and_use_database(db_name)
 
         try:
             with connection.cursor() as cursor:
@@ -147,14 +224,12 @@ def query_mysql():
                 rows = cursor.fetchall()
                 results = [dict(zip(columns, row)) for row in rows]
 
-                connection.close()
                 return jsonify({
                     "results": results, 
                     "count": len(results)
                 }), 200
 
         except pymysql.Error as e:
-            connection.close()
             return jsonify({
                 "error": f"Database error: {str(e)}"
             }), 500
@@ -163,36 +238,86 @@ def query_mysql():
         return jsonify({
             "error": str(e)
         }), 500
-        
-@app.route('/api/tables-mysql/<table_name>', methods=['GET'])
-def get_table_data(table_name):
-    try:
-        connection = get_RDS_database_connection()
-
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute(f"SELECT COUNT(*) FROM `{table_name}`")
-                count = cursor.fetchone()[0]
-                
-                cursor.execute(f"SELECT * FROM `{table_name}` LIMIT 10")
-                columns = [desc[0] for desc in cursor.description]
-                rows = cursor.fetchall()
-                
-                data = [dict(zip(columns, row)) for row in rows]
-
-                connection.close()
-                return jsonify({
-                    "table_name": table_name,
-                    "total_rows": count,
-                    "sample_data": data
-                }), 200
-                
-        except pymysql.Error as e:
+    finally:
+        if connection:
             connection.close()
-            return jsonify({"error": f"Database error: {str(e)}"}), 500
-
+            print("MySQL connection closed")
+            
+            
+def get_mysql_schema(db_name):
+    connection = None
+    try:
+        connection = create_and_use_database(db_name)
+        cursor = connection.cursor()
+        schema = {}
+        
+        # Get all tables in the database
+        cursor.execute("SHOW TABLES")
+        tables = cursor.fetchall()
+        
+        for table in tables:
+            table_name = table[0]
+            # Get columns for each table
+            cursor.execute(f"SHOW COLUMNS FROM {table_name}")
+            columns = cursor.fetchall()
+            # Extract column names
+            schema[table_name] = [column[0] for column in columns]
+            
+        return schema
+        
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error getting MySQL schema: {e}")
+        raise e
+    finally:
+        if connection:
+            connection.close()
+            print("MySQL connection closed")
+
+"""
+curl -X GET http://127.0.0.1:5000/api/get-mysql-schema/database2
+"""            
+@app.route('/api/get-mysql-schema/<db_name>', methods=['GET'])
+def get_mysql_schema_route(db_name):
+    try:
+        schema = get_mysql_schema(db_name)
+        return jsonify({
+            "database": db_name,
+            "tables": schema
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "error": str(e)
+        }), 500
+        
+# @app.route('/api/tables-mysql/<table_name>', methods=['GET'])
+# def get_table_data(table_name):
+#     try:
+#         connection = get_RDS_database_connection()
+
+#         try:
+#             with connection.cursor() as cursor:
+#                 cursor.execute(f"SELECT COUNT(*) FROM `{table_name}`")
+#                 count = cursor.fetchone()[0]
+                
+#                 cursor.execute(f"SELECT * FROM `{table_name}` LIMIT 10")
+#                 columns = [desc[0] for desc in cursor.description]
+#                 rows = cursor.fetchall()
+                
+#                 data = [dict(zip(columns, row)) for row in rows]
+
+#                 connection.close()
+#                 return jsonify({
+#                     "table_name": table_name,
+#                     "total_rows": count,
+#                     "sample_data": data
+#                 }), 200
+                
+#         except pymysql.Error as e:
+#             connection.close()
+#             return jsonify({"error": f"Database error: {str(e)}"}), 500
+
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
     
 def connect_mongodb(db_name):
     try:
