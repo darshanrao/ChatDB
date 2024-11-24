@@ -403,16 +403,25 @@ def query_data():
         query_str = data['query']
         db_name = data['db_name']
         schema = get_collections_schema(db_name)
-        query =  query_generator(query_str,schema,database="mongodb",option=1)
-        query = query.replace('\\"', '"')
-        print(query)
-        try:
-            collection_name, pipeline = extract_mongo_query(query) 
-        except ValueError as e:
-            return jsonify({
-                "error": str(e)
-            }), 400
+
         
+        attempts = 0
+        max_attempts = 3
+        success = False
+
+        while attempts < max_attempts and not success:
+            try:
+                query = query_generator(query_str, schema, database="mongodb", option=1)
+                query = query.replace('\\"', '"')
+                print(query)
+                collection_name, pipeline = extract_mongo_query(query)
+                success = True
+            except ValueError as e:
+                attempts += 1
+                if attempts == max_attempts:
+                    return jsonify({
+                        "error": str(e)
+                    }), 400
         # Connect to MongoDB with specified database    
         client, db = connect_mongodb(db_name)
             
