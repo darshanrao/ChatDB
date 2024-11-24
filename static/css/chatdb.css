@@ -21,6 +21,26 @@ body {
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
+.tabs {
+    display: flex;
+    border-bottom: 1px solid #ddd;
+}
+
+.tab {
+    flex: 1;
+    padding: 10px 20px;
+    text-align: center;
+    cursor: pointer;
+    background: #f9f9f9;
+    border: none;
+    outline: none;
+}
+
+.tab.active {
+    background: #007bff;
+    color: white;
+}
+
 #chat-window {
     flex: 1;
     overflow-y: auto;

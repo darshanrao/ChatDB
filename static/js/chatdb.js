@@ -2,31 +2,71 @@
 const sendBtn = document.getElementById('send-btn');
 const userInput = document.getElementById('user-input');
 const messages = document.getElementById('messages');
+const mysqlTab = document.getElementById('mysqlTab');
+const mongodbTab = document.getElementById('mongodbTab');
+
+let activeTab = 'mysql'; 
+
+function switchTab(selectedTab) {
+    if (selectedTab === 'mysql') {
+        mysqlTab.classList.add('active');
+        mongodbTab.classList.remove('active');
+        messages.innerText = '';
+        activeTab = 'mysql';
+    } else if (selectedTab === 'mongodb') {
+        mongodbTab.classList.add('active');
+        mysqlTab.classList.remove('active');
+        messages.innerText = '';
+        activeTab = 'mongodb';
+    }
+}
+
+// Add event listeners for tab clicks
+mysqlTab.addEventListener('click', () => switchTab('mysql'));
+mongodbTab.addEventListener('click', () => switchTab('mongodb'));
+
 
 sendBtn.addEventListener('click', () => {
   const query = userInput.value.trim();
   if (!query) return;
 
   try {
-      // Parse the input as JSON
+      // Parse the input as sJSON
       const queryData = JSON.parse(query);
       
       addMessage(query, 'user-message');
       userInput.value = '';
-
+      if (activeTab == 'mysql') {
       // Call Flask backend with MongoDB query endpoint
+      fetch('/api/query-mysql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(queryData)
+      })
+    
+      .then(response => response.json())
+      .then(data => {
+          addMessage(data.response, 'bot-message'); 
+          addMessage("Query Executed", 'bot-message');
+          displayTable(data.results);
+      })
+      .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));
+    }
+    else {
       fetch('/api/query-mongodb', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(queryData)
       })
+    
       .then(response => response.json())
       .then(data => {
           addMessage(data.response, 'bot-message'); 
+          addMessage("Query Executed", 'bot-message');
           displayTable(data.results);
       })
       .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));
-
+    }
   } catch (err) {
       addMessage('Error: Please provide a valid JSON query format.', 'bot-message');
   }
