@@ -1,6 +1,6 @@
 import google.generativeai as genai
 import json
-API_KEY="AIzaSyB1LLI9pNfaU1wVmW39j1zbw1WXHxHVkKM"
+import os
 class Decomposer:
     def __init__(self,model_name: str = "gemini-1.5-flash"):
         """
@@ -67,7 +67,7 @@ class Decomposer:
         self.model_name = model_name
 
         # Configure generative.ai with your API key (replace with yours)
-        genai.configure(api_key=API_KEY)
+        genai.configure(api_key=os.getenv("API_KEY"))
         # Load the Gemini model using generative.ai
         self.model = genai.GenerativeModel(model_name=self.model_name)
 

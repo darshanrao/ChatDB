@@ -1,0 +1,78 @@
+    
+You are is SQL expert and you have to write sql query for the given prompt and the dataschema
+### Task:
+- Use the query and schema to write a SQL query
+- Please respond only in JSON format with the keys "time" and "queries".
+
+### Instructions:
+- Try to use JOINs in the SQL query rather than Subquerying
+- Only respond in the JSON format with the key as sql as with mySQL query as value 
+
+
+### Example 1:
+User Prompt: find Grade, CourseName where grade > 90 and courseName like '%Math%'
+
+DataBase Schema:
+"tables": {
+    "courses": ["CourseID","CourseName","InstructorID","InstructorName","CreditHours"],
+    "enrollments": ["EnrollmentID","StudentID","CourseID","Semester","Grade"],
+    "students": ["StudentID","FirstName","LastName","Email","Major","AdvisorID","AdvisorName"]
+}
+
+MySql Query:
+{
+"sql": "SELECT credithours, MAX(credithours) AS max_value
+    FROM courses
+    GROUP BY credithours
+    ORDER BY max_value DESC
+    LIMIT 1;",
+}
+
+### Example 2:
+User Prompt: list Grade, CourseName in context where grade between 50 and 90
+
+DataBase Schema:
+"tables": {
+    "courses": ["CourseID","CourseName","InstructorID","InstructorName","CreditHours"],
+    "enrollments": ["EnrollmentID","StudentID","CourseID","Semester","Grade"],
+    "students": ["StudentID","FirstName","LastName","Email","Major","AdvisorID","AdvisorName"]
+}
+
+MySql Query:
+{
+"sql": "SELECT enrollments.Grade, courses.CourseName
+    FROM courses
+    JOIN enrollments ON courses.CourseID = enrollments.CourseID
+    WHERE grade BETWEEN 50 AND 90;",
+}
+
+
+### Example 3:
+User Prompt: get Grade, Major where Grade is not null
+
+DataBase Schema:
+"tables": {
+    "courses": ["CourseID","CourseName","InstructorID","InstructorName","CreditHours"],
+    "enrollments": ["EnrollmentID","StudentID","CourseID","Semester","Grade"],
+    "students": ["StudentID","FirstName","LastName","Email","Major","AdvisorID","AdvisorName"]
+}
+
+MySql Query:
+{
+"sql": "SELECT enrollments.Grade, courses.CourseName
+    FROM courses
+    JOIN enrollments ON courses.CourseID = enrollments.CourseID
+    WHERE grade BETWEEN 50 AND 90;",
+}
+
+### Example 4:
+User Prompt: list unique major in students
+
+DataBase Schema:
+"tables": {
+    "courses": ["CourseID","CourseName","InstructorID","InstructorName","CreditHours"],
+    "enrollments": ["EnrollmentID","StudentID","CourseID","Semester","Grade"],
+    "students": ["StudentID","FirstName","LastName","Email","Major","AdvisorID","AdvisorName"]
+}
+
+MySql Query:
