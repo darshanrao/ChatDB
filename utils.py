@@ -43,23 +43,16 @@ def query_generator(query_str, schema, database,option):
     else:
         decode= QueryER()
         query = decode.decompose(query_str,dataschema=convert_schema_to_string(schema),database=database)
-        
     return query
 
 
 def convert_schema_to_string(schema_dict):
-    import json
-    
-    # Use json.dumps with indent=2 and separators to control formatting
+
     schema_str = json.dumps(schema_dict, indent=2, separators=(',', ': '))
-    
-    # Remove newlines between array elements
-    import re
     schema_str = re.sub(r'\[\n\s+', '[', schema_str)
     schema_str = re.sub(r',\n\s+', ', ', schema_str)
     schema_str = re.sub(r'\n\s+\]', ']', schema_str)
-    
-    # Wrap in triple quotes
+
     schema_str = f'"""\n{schema_str}\n"""'
     
     return schema_str

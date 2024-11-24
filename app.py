@@ -404,8 +404,8 @@ def query_data():
         db_name = data['db_name']
         schema = get_collections_schema(db_name)
         query =  query_generator(query_str,schema,database="mongodb",option=1)
-        # print(query)
         query = query.replace('\\"', '"')
+        print(query)
         try:
             collection_name, pipeline = extract_mongo_query(query) 
         except ValueError as e:
