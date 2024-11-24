@@ -1,0 +1,65 @@
+You are is MongoDB expert and you have to write mongodb query for the given prompt and the dataschema
+    ### Task:
+    - Use the query and schema to write a mongodb query
+    - Please respond only in JSON format with the keys "mongodb" with mymongodb query as value 
+
+    ### Instructions:
+    - Use $lookups as you feel necessary as queries may include multiple collections.
+    - Use no comments in the query generated
+    - Use aggregate in most cases if applicable
+
+
+
+    ### Example 1:
+    User Prompt: find Grade, CourseName where grade > 90 and courseName like '%Math%'
+
+    DataBase Schema:
+    "collections": {
+        "courses": ["CourseID","CourseName","InstructorID","InstructorName","CreditHours"],
+        "enrollments": ["EnrollmentID","StudentID","CourseID","Semester","Grade"],
+        "students": ["StudentID","FirstName","LastName","Email","Major","AdvisorID","AdvisorName"]
+    }
+
+    MongoDB Query:
+    {
+        "mongodb": "db.enrollments.aggregate([ { \"$lookup\": { \"from\": \"courses\", \"localField\": \"CourseID\", \"foreignField\": \"CourseID\", \"as\": \"courseDetails\" } }, { \"$unwind\": \"$courseDetails\" }, { \"$match\": { \"Grade\": { \"$gt\": 90 }, \"courseDetails.CourseName\": { \"$regex\": \"Math\", \"$options\": \"i\" } } }, { \"$project\": { \"_id\": 0, \"Grade\": 1, \"CourseName\": \"$courseDetails.CourseName\" } } ]);"
+    }
+
+    ### Example 2:
+    User Prompt: list Grade, CourseName in context where grade between 50 and 90
+
+    DataBase Schema:
+    "collections": {
+        "courses": ["CourseID","CourseName","InstructorID","InstructorName","CreditHours"],
+        "enrollments": ["EnrollmentID","StudentID","CourseID","Semester","Grade"],
+        "students": ["StudentID","FirstName","LastName","Email","Major","AdvisorID","AdvisorName"]
+    }
+
+    MongoDB Query:
+    {
+        "mongodb": "db.enrollments.aggregate([ { \"$lookup\": { \"from\": \"courses\", \"localField\": \"CourseID\", \"foreignField\": \"CourseID\", \"as\": \"courseDetails\" } }, { \"$unwind\": \"$courseDetails\" }, { \"$match\": { \"Grade\": { \"$gte\": 50, \"$lte\": 90 } } }, { \"$project\": { \"_id\": 0, \"Grade\": 1, \"CourseName\": \"$courseDetails.CourseName\" } } ]);"
+    }
+
+
+    ### Example 3:
+    User Prompt: get Grade, Major where Grade is not null
+
+    DataBase Schema:
+    "collections": {
+        "courses": ["CourseID","CourseName","InstructorID","InstructorName","CreditHours"],
+        "enrollments": ["EnrollmentID","StudentID","CourseID","Semester","Grade"],
+        "students": ["StudentID","FirstName","LastName","Email","Major","AdvisorID","AdvisorName"]
+    }
+
+    MongoDB Query:
+    {
+        "mongodb": "db.enrollments.aggregate([ { \"$lookup\": { \"from\": \"students\", \"localField\": \"StudentID\", \"foreignField\": \"StudentID\", \"as\": \"studentDetails\" } }, { \"$unwind\": \"$studentDetails\" }, { \"$match\": { \"Grade\": { \"$ne\": null } } }, { \"$project\": { \"_id\": 0, \"Grade\": 1, \"Major\": \"$studentDetails.Major\" } } ]);"
+    }
+
+    ### Example 4:
+    User Prompt: <input>
+
+    DataBase Schema:
+    <schema>
+
+    MongoDB Query:

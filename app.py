@@ -195,7 +195,7 @@ curl -X POST http://127.0.0.1:5000/api/query-mysql \
 -H "Content-Type: application/json" \
 -d '{
     "db_name": "database2", 
-    "query": "SELECT Major, COUNT(*) as studentCount FROM students GROUP BY Major"
+    "query": "get Grade, Major where Grade is not null"
 }'
 """
     
@@ -212,13 +212,14 @@ def query_mysql():
 
         query_str = data['query']
         db_name = data['db_name']
-
+        schema = get_mysql_schema(db_name)
+        query =  query_generator(query_str,schema,database="sql",option=1)
         # Pass database name to connection function
         connection = create_and_use_database(db_name)
 
         try:
             with connection.cursor() as cursor:
-                cursor.execute(query_str)
+                cursor.execute(query)
                 
                 columns = [desc[0] for desc in cursor.description]
                 rows = cursor.fetchall()
@@ -289,35 +290,6 @@ def get_mysql_schema_route(db_name):
             "error": str(e)
         }), 500
         
-# @app.route('/api/tables-mysql/<table_name>', methods=['GET'])
-# def get_table_data(table_name):
-#     try:
-#         connection = get_RDS_database_connection()
-
-#         try:
-#             with connection.cursor() as cursor:
-#                 cursor.execute(f"SELECT COUNT(*) FROM `{table_name}`")
-#                 count = cursor.fetchone()[0]
-                
-#                 cursor.execute(f"SELECT * FROM `{table_name}` LIMIT 10")
-#                 columns = [desc[0] for desc in cursor.description]
-#                 rows = cursor.fetchall()
-                
-#                 data = [dict(zip(columns, row)) for row in rows]
-
-#                 connection.close()
-#                 return jsonify({
-#                     "table_name": table_name,
-#                     "total_rows": count,
-#                     "sample_data": data
-#                 }), 200
-                
-#         except pymysql.Error as e:
-#             connection.close()
-#             return jsonify({"error": f"Database error: {str(e)}"}), 500
-
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
     
 def connect_mongodb(db_name):
     try:
@@ -413,7 +385,7 @@ curl -X POST http://127.0.0.1:5000/api/query-mongodb \
 -H "Content-Type: application/json" \
 -d '{
     "db_name": "database2",
-    "query": "db.students.aggregate([{ \"$group\": { \"_id\": \"$Major\", \"studentCount\": { \"$sum\": 1 } } }])"
+    "query": "find smallest grade in enrollments"
 }'
 """
 @app.route('/api/query-mongodb', methods=['POST'])
@@ -428,11 +400,14 @@ def query_data():
             }), 400
             
         # Remove escaped quotes if present
-        query_str = data['query'].replace('\\"', '"')
+        query_str = data['query']
         db_name = data['db_name']
-        
+        schema = get_collections_schema(db_name)
+        query =  query_generator(query_str,schema,database="mongodb",option=1)
+        # print(query)
+        query = query.replace('\\"', '"')
         try:
-            collection_name, pipeline = extract_mongo_query(query_str) 
+            collection_name, pipeline = extract_mongo_query(query) 
         except ValueError as e:
             return jsonify({
                 "error": str(e)
