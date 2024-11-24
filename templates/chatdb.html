@@ -1,55 +1,40 @@
-<!-- <!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ChatDB</title>
-    <link rel="stylesheet" href="chatdb.css">
-</head>
-
-<body>
-    <div id="chat-container">
-        <div id="chat-window">
-            <div id="messages"></div>
-        </div>
-        <div id="input-area">
-            <input type="text" id="user-input" placeholder="Ask a query...">
-            <button id="send-btn">Send</button>
-        </div>
-    </div>
-    <script src="chatdb.js"></script>
-</body>
-
-</html> -->
-
 <!DOCTYPE html>
 <html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ChatDB</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatdb.css') }}">
-</head>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/chatdb.css') }}"
+    />
+  </head>
 
-<body>
+  <body>
     <div id="chat-container">
-        <div id="chat-window">
-            <div id="messages"></div>
-        </div>
-        <div id="input-area">
-            <input type="text" id="user-input" placeholder="What would you like to do ?">
-            <button id="send-btn">Send</button>
-            <input type="file" id="upload-file" accept=".csv" style="display: none;" />
-            <button id="upload-btn">Upload CSV</button>
-        </div>
+      <div id="chat-window">
+        <div id="messages"></div>
+      </div>
+      <div id="input-area">
+        <input
+          type="text"
+          id="user-input"
+          placeholder="What would you like to do ?"
+        />
+        <button id="send-btn">Send</button>
+        <input
+          type="file"
+          id="upload-file"
+          accept=".csv"
+          style="display: none"
+        />
+        <button id="upload-btn">Upload CSV</button>
+      </div>
     </div>
     <div id="table-display">
-        <h2>Query Results </h2>
-        <div id="results"></div>
+      <h2>Query Results</h2>
+      <div id="results"></div>
     </div>
     <script src="{{ url_for('static', filename='js/chatdb.js') }}"></script>
-</body>
-
+  </body>
 </html>
