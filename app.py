@@ -24,7 +24,7 @@ app = Flask(__name__,
 )
 CORS(app)
 
-
+globalOption=1
 
 
 def get_RDS_connection_without_db():
@@ -187,9 +187,9 @@ def query_mysql():
         query_str = data['query']
         db_name = data['db_name']
         schema = get_mysql_schema(db_name)
-        query =  query_generator(query_str,schema,database="sql",option=0)
+        query =  query_generator(query_str,schema,database="sql",option=globalOption)
         connection = create_and_use_database(db_name)
-
+        print(query)
         try:
             with connection.cursor() as cursor:
                 cursor.execute(query)
@@ -197,7 +197,7 @@ def query_mysql():
                 columns = [desc[0] for desc in cursor.description]
                 rows = cursor.fetchall()
                 results = [dict(zip(columns, row)) for row in rows]
-
+                # import pdb; pdb.set_trace()
                 return jsonify({
                     "query": query,
                     "results": results, 
@@ -376,10 +376,11 @@ def query_data():
 
         while attempts < max_attempts and not success:
             try:
-                query = query_generator(query_str, schema, database="mongodb", option=0)
+                query = query_generator(query_str, schema, database="mongodb", option=globalOption)
                 query = query.replace('\\"', '"')
                 print(query)
                 collection_name, pipeline = extract_mongo_query(query)
+                # import pdb; pdb.set_trace()
                 success = True
             except ValueError as e:
                 attempts += 1
@@ -388,15 +389,15 @@ def query_data():
                         "error": str(e)
                     }), 400
         client, db = connect_mongodb(db_name)
-            
+        
         collection = db[collection_name]
         
         results = list(collection.aggregate(pipeline))
-        
+        # import pdb; pdb.set_trace()
         for doc in results:
             if '_id' in doc:
                 doc['_id'] = str(doc['_id'])
-        
+        print(results)
         return jsonify({
             "query": query,
             "results": results,

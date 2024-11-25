@@ -54,7 +54,7 @@ sendBtn.addEventListener('click', () => {
         .then(response => response.json())
         .then(data => {
             addMessage( data.query, 'bot-message');
-
+            console.log(data)
             displayTable(data.results);
         })
         .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));
@@ -69,6 +69,7 @@ sendBtn.addEventListener('click', () => {
         .then(response => response.json())
         .then(data => {
             addMessage(data.query, 'bot-message');
+            console.log(data)
             displayTable(data.results);
         })
         .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));

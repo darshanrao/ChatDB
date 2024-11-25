@@ -107,7 +107,7 @@ class QueryER:
 
             MongoDB Query:
             {
-                "mongodb": "db.enrollments.aggregate([ { \"$lookup\": { \"from\": \"courses\", \"localField\": \"CourseID\", \"foreignField\": \"CourseID\", \"as\": \"courseDetails\" } }, { \"$unwind\": \"$courseDetails\" }, { \"$match\": { \"Grade\": { \"$gt\": 90 }, \"courseDetails.CourseName\": { \"$regex\": \"Math\", \"$options\": \"i\" } } }, { \"$project\": { \"_id\": 0, \"Grade\": 1, \"CourseName\": \"$courseDetails.CourseName\" } } ]);"
+                "mongodb": "db.enrollments.aggregate([ {  "$lookup ": {  "from ":  "courses ",  "localField ":  "CourseID ",  "foreignField ":  "CourseID ",  "as ":  "courseDetails " } }, {  "$unwind ":  "$courseDetails " }, {  "$match ": {  "Grade ": {  "$gt ": 90 },  "courseDetails.CourseName ": {  "$regex ":  "Math ",  "$options ":  "i " } } }, {  "$project ": {  "_id ": 0,  "Grade ": 1,  "CourseName ":  "$courseDetails.CourseName " } } ]);"
             }
 
             ### Example 2:
@@ -122,12 +122,12 @@ class QueryER:
 
             MongoDB Query:
             {
-                "mongodb": "db.enrollments.aggregate([ { \"$lookup\": { \"from\": \"courses\", \"localField\": \"CourseID\", \"foreignField\": \"CourseID\", \"as\": \"courseDetails\" } }, { \"$unwind\": \"$courseDetails\" }, { \"$match\": { \"Grade\": { \"$gte\": 50, \"$lte\": 90 } } }, { \"$project\": { \"_id\": 0, \"Grade\": 1, \"CourseName\": \"$courseDetails.CourseName\" } } ]);"
+                "mongodb": "db.enrollments.aggregate([ { "$lookup": { "from": "courses", "localField": "CourseID", "foreignField": "CourseID", "as": "courseDetails" } }, {  "$unwind ":  "$courseDetails " }, {  "$match ": {  "Grade ": {  "$gte ": 50,  "$lte ": 90 } } }, {  "$project ": {  "_id ": 0,  "Grade ": 1,  "CourseName ":  "$courseDetails.CourseName " } } ]);"
             }
 
 
             ### Example 3:
-            User Prompt: get Grade, Major where Grade is not null
+            User Prompt: Count total number of rows in students
 
             DataBase Schema:
             {
@@ -138,7 +138,7 @@ class QueryER:
 
             MongoDB Query:
             {
-                "mongodb": "db.enrollments.aggregate([ { \"$lookup\": { \"from\": \"students\", \"localField\": \"StudentID\", \"foreignField\": \"StudentID\", \"as\": \"studentDetails\" } }, { \"$unwind\": \"$studentDetails\" }, { \"$match\": { \"Grade\": { \"$ne\": null } } }, { \"$project\": { \"_id\": 0, \"Grade\": 1, \"Major\": \"$studentDetails.Major\" } } ]);"
+                "mongodb": "db.students.aggregate([ {"$count": "totalRows" } ]);"
             }
 
             ### Example 4:

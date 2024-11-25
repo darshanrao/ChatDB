@@ -407,14 +407,14 @@ def query_function_sql(data_schema, query):
             ),
             
             
-            # TEMPLATE 9: BETWEEN
+        # TEMPLATE 9: BETWEEN
             # Lists rows where a column value is between two values
             
             # List rows where column_name value is between 1 and 3 in table_name
             # List rows where CreditHours value is between 5 and 7 in Courses
             
             (
-                r"(?:find|list)?\s*rows where (.+) between (.+) and (.+) in (.+)",
+                r"(?:find|list)?\s*rows where (.+) value is between (.+) and (.+) in (.+)",
                 lambda m: textwrap.dedent(f"""
                     SELECT *
                     FROM {m.group(4)}
@@ -564,8 +564,6 @@ def query_function_sql(data_schema, query):
         
         # Count rows where CreditHours is not null in Courses
         
-        
-        
         query_templates += [
             
             # TEMPLATE 20: IN
@@ -605,11 +603,14 @@ def query_function_sql(data_schema, query):
         # Generate and print SQL queries for test queries
         for user_query in test_queries:
             sql_query = generate_query(user_query, query_templates)
+            # import pdb; pdb.set_trace()
+            
             if sql_query:
                 #print(f"User Query: {user_query}")
                 #print(f"Generated SQL Query:\n{sql_query}\n")
+                sql_query = sql_query.replace('\n', ' ')
                 # print(sql_query)
-                
+                # import pdb; pdb.set_trace()
                 return sql_query
             #else:
                 #print(f"No match found for query: {user_query}")
@@ -871,7 +872,7 @@ def sql_to_mongo(sql_query):
 
 
     
-# query_test="get Grade, Major where Grade = 'A'"
+# query_test="List top 5 rows in students"
 # print(query_function_sql(data_schema=schema_dict,query=query_test))
 
 # print(sql_to_mongo(query_function_sql(data_schema=schema_dict,query=query_test)))
