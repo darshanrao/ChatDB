@@ -1,0 +1,10 @@
+runtime: python311  # Specify the runtime version
+entrypoint: gunicorn -b :$PORT app:app  # Adjust 'app' to the Flask app name in app.py
+
+# Optional: Define handlers if necessary
+handlers:
+  - url: /static
+    static_dir: static
+    
+  - url: /.*
+    script: auto  # Allows the app to handle all incoming requests

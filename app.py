@@ -27,6 +27,7 @@ CORS(app)
 globalOption=1
 
 
+
 def get_RDS_connection_without_db():
     try:
         host = os.getenv('RDS_HOST')
@@ -459,4 +460,4 @@ def index():
     return render_template('chatdb.html')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))

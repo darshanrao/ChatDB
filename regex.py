@@ -929,9 +929,15 @@ def sql_to_mongo(sql_query):
         collection, column_name, regex_pattern = match_count_like.groups()
         # Convert SQL LIKE pattern to MongoDB regex
         #regex_pattern = pattern.replace('%', '.*')
+        # return (
+        #     f"db.{collection}.aggregate(["
+        #     f"{{ '$match': {{ '{column_name}': {{ '$regex': '.*{regex_pattern}.*' }} }} }},"
+        #     f"{{ '$count': 'total_count' }}"
+        #     f"]);"
+        # )
         return (
             f"db.{collection}.aggregate(["
-            f"{{ '$match': {{ '{column_name}': {{ '$regex': '.*{regex_pattern}.*' }} }} }},"
+            f"{{ '$match': {{ '{column_name}': {{ '$regex': '{regex_pattern}', '$options': 'i' }} }} }},"
             f"{{ '$count': 'total_count' }}"
             f"]);"
         )
@@ -1058,48 +1064,46 @@ def sql_to_mongo(sql_query):
         )
         
     #2
-    # Handle SELECT with JOIN and WHERE IN
+    # Handle SELECT with JOIN and WHERE IN conditions
     match_join_in = re.match(
-        r"SELECT\s+([\w.,\s]+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)\s+WHERE\s+(\w+)\s+IN\s+\((.+?)\);?",
+        r"SELECT\s+(\w+\.\w+),\s+(\w+\.\w+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+\.\w+)\s*=\s*(\w+\.\w+)\s+WHERE\s+(\w+)\s+IN\s+\((.+?)\);?",
         sql_query,
         re.IGNORECASE
     )
     if match_join_in:
-        select_fields, collection1, collection2, table1, key1, table2, key2, filter_column, in_values = match_join_in.groups()
-        
-        # Parse fields for projection
-        fields = [field.strip() for field in select_fields.split(",")]
-        projection = {field.split(".")[1]: f"${field.split('.')[1]}" for field in fields}
+        select_field1, select_field2, collection1, collection2, join_field1, join_field2, filter_field, in_values = match_join_in.groups()
 
-        # Parse values for the IN clause
-        in_values = [value.strip().strip("'") for value in in_values.split(",")]
+        # Parse fields for projection
+        select_field1_name = select_field1.split('.')[1] if '.' in select_field1 else select_field1
+        select_field2_name = select_field2.split('.')[1] if '.' in select_field2 else select_field2
+        local_field = join_field1.split('.')[1] if '.' in join_field1 else join_field1
+        foreign_field = join_field2.split('.')[1] if '.' in join_field2 else join_field2
+        filter_field_name = filter_field.split('.')[1] if '.' in filter_field else filter_field
+
+        # Parse IN values
+        in_values_list = [int(value.strip()) for value in in_values.split(",")]
 
         return (
             f"db.{collection1}.aggregate(["
-            f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{key1}', 'foreignField': '{key2}', 'as': 'joined_data' }} }},"
-            f"{{ '$unwind': '$joined_data' }},"
-            f"{{ '$match': {{ '{filter_column}': {{ '$in': {in_values} }} }} }},"
-            f"{{ '$project': {projection} }}"
+            f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{local_field}', 'foreignField': '{foreign_field}', 'as': '{collection2}' }} }},"
+            f"{{ '$unwind': '${collection2}' }},"
+            f"{{ '$match': {{ '{filter_field_name}': {{ '$in': {in_values_list} }} }} }},"
+            f"{{ '$project': {{ '{select_field1_name}': 1, '{select_field2_name}': '${collection2}.{select_field2_name}', '_id': 0 }} }}"
             f"]);"
         )
     
-    
-    
-    # 3
-    # Template to handle SELECT with JOIN and WHERE clause using "not equal to" condition
-    match_join_not_equal = re.match(
-        r"SELECT\s+(\w+\.\w+),\s+(\w+\.\w+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+\.\w+)\s*=\s*(\w+\.\w+)\s+WHERE\s+(\w+)\s*!=\s*('?)(.+?)\8",
-        sql_query.strip(),
+    #3
+    # Handle SELECT with JOIN and WHERE LIKE conditions
+    match_join_like = re.match(
+        r"SELECT\s+(\w+\.\w+),\s+(\w+\.\w+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+\.\w+)\s*=\s*(\w+\.\w+)\s+WHERE\s+(\w+)\s+LIKE\s+'(.+?)';?",
+        sql_query,
         re.IGNORECASE
     )
-    if match_join_not_equal:
-        select_field1, select_field2, collection1, collection2, join_field1, join_field2, filter_field, _, filter_value = match_join_not_equal.groups()
+    if match_join_like:
+        select_field1, select_field2, collection1, collection2, join_field1, join_field2, filter_field, like_pattern = match_join_like.groups()
 
-        # Convert numeric filter values to integers if applicable
-        try:
-            filter_value = int(filter_value)
-        except ValueError:
-            filter_value = f'"{filter_value}"'  # Use double quotes for strings
+        # Convert SQL LIKE pattern to MongoDB regex
+        regex_pattern = like_pattern.replace('%', '')
 
         # Handle splitting fields
         local_field = join_field1.split('.')[1] if '.' in join_field1 else join_field1
@@ -1112,42 +1116,8 @@ def sql_to_mongo(sql_query):
             f"db.{collection1}.aggregate(["
             f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{local_field}', 'foreignField': '{foreign_field}', 'as': '{collection2}' }} }},"
             f"{{ '$unwind': '${collection2}' }},"
-            f"{{ '$match': {{ '{filter_field_name}': {{ '$ne': {filter_value} }} }} }},"
-            f"{{ '$project': {{ '{select_field1_name}': 1, '{select_field2_name}': '${collection2}.{select_field2_name}' }} }}"
-            f"]);"
-        )
-    
-    #4
-    
-     # Handle SELECT with JOIN and multiple WHERE conditions
-    match_join_where = re.match(
-        r"SELECT\s+(\w+\.\w+),\s+(\w+\.\w+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+\.\w+)\s*=\s*(\w+\.\w+)\s+WHERE\s+(\w+)\s*>\s*(\d+)\s+AND\s+(\w+)\s+LIKE\s+'(.+?)';?",
-        sql_query,
-        re.IGNORECASE
-    )
-    if match_join_where:
-        select_field1, select_field2, collection1, collection2, join_field1, join_field2, filter_field1, filter_value1, filter_field2, filter_value2 = match_join_where.groups()
-
-        # Convert LIKE pattern to MongoDB regex
-        regex_pattern = filter_value2.replace('%', '.*')
-
-        # Handle splitting fields
-        local_field = join_field1.split('.')[1] if '.' in join_field1 else join_field1
-        foreign_field = join_field2.split('.')[1] if '.' in join_field2 else join_field2
-        filter_field1_name = filter_field1.split('.')[1] if '.' in filter_field1 else filter_field1
-        filter_field2_name = filter_field2.split('.')[1] if '.' in filter_field2 else filter_field2
-        select_field1_name = select_field1.split('.')[1] if '.' in select_field1 else select_field1
-        select_field2_name = select_field2.split('.')[1] if '.' in select_field2 else select_field2
-
-        return (
-            f"db.{collection1}.aggregate(["
-            f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{local_field}', 'foreignField': '{foreign_field}', 'as': '{collection2}' }} }},"
-            f"{{ '$unwind': '${collection2}' }},"
-            f"{{ '$match': {{ "
-            f"    '{filter_field1_name}': {{ '$gt': {int(filter_value1)} }}, "
-            f"    '{collection2}.{filter_field2_name}': {{ '$regex': '{regex_pattern}', '$options': 'i' }} "
-            f"}} }},"
-            f"{{ '$project': {{ '{select_field1_name}': 1, '{select_field2_name}': '${collection2}.{select_field2_name}' }} }}"
+            f"{{ '$match': {{ '{collection2}.{filter_field_name}': {{ '$regex': '^{regex_pattern}' }} }} }},"
+            f"{{ '$project': {{ '{select_field1_name}': '${collection2}.{select_field1_name}', '{select_field2_name}': 1, '_id': 0 }} }}"
             f"]);"
         )
 
