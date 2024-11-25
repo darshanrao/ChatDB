@@ -22,7 +22,6 @@ function switchTab(selectedTab) {
     }
 }
 
-// Add event listeners for tab clicks
 mysqlTab.addEventListener('click', () => switchTab('mysql'));
 mongodbTab.addEventListener('click', () => switchTab('mongodb'));
 
@@ -38,7 +37,7 @@ sendBtn.addEventListener('click', () => {
       addMessage(query, 'user-message');
       currDatabase = match[1]; 
       addMessage(`Switched to database: ${currDatabase}`, 'bot-message');
-      userInput.innerText = '';
+      userInput.value = '';
       return; 
   }
   else {
@@ -98,12 +97,10 @@ function displayTable(data) {
     return;
   }
 
-  // Create table
   const table = document.createElement('table');
   const thead = document.createElement('thead');
   const tbody = document.createElement('tbody');
 
-  // Add table headers
   const headers = Object.keys(data[0]);
   const headerRow = document.createElement('tr');
   headers.forEach(header => {
@@ -113,7 +110,6 @@ function displayTable(data) {
   });
   thead.appendChild(headerRow);
 
-  // Add table rows
   data.forEach(row => {
     const tr = document.createElement('tr');
     headers.forEach(header => {
@@ -136,22 +132,18 @@ uploadBtn.addEventListener('click', () => {
   uploadFileInput.click();
 });
 
-// Only allow directory selection
 uploadFileInput.setAttribute('webkitdirectory', '');
 
 uploadFileInput.addEventListener('change', async () => {
   const files = Array.from(uploadFileInput.files);
   if (!files.length) return;
 
-  // Get folder name from the first file's path
   const folderPath = files[0].webkitRelativePath;
-  const dbName = folderPath.split('/')[0]; // Get the root folder name
+  const dbName = folderPath.split('/')[0]; 
   
-  // Create single FormData for all files
   const formData = new FormData();
   formData.append('db_name', dbName);
 
-  // Add all CSV files to the same FormData
   let csvCount = 0;
   files.forEach(file => {
     if (file.name.endsWith('.csv')) {

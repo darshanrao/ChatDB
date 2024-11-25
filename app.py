@@ -19,8 +19,8 @@ load_dotenv()
 
 
 app = Flask(__name__, 
-    template_folder='templates',  # Add template folder
-    static_folder='static'        # Add static folder for CSS/JS
+    template_folder='templates',  
+    static_folder='static'        
 )
 CORS(app)
 
@@ -29,13 +29,11 @@ CORS(app)
 
 def get_RDS_connection_without_db():
     try:
-        # Get clean values from environment variables
         host = os.getenv('RDS_HOST')
         port = int(os.getenv('RDS_PORT', '3306').split('#')[0].strip())
         user = os.getenv('RDS_USER')
         password = os.getenv('RDS_PASSWORD')
         
-        # Verify all required environment variables are present
         if not all([host, user, password]):
             raise ValueError("Missing required RDS configuration. Please check your .env file.")
         
@@ -61,9 +59,7 @@ def create_and_use_database(db_name):
     connection = get_RDS_connection_without_db()
     try:
         with connection.cursor() as cursor:
-            # Create database if not exists
             cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
-            # Use the database
             cursor.execute(f"USE {db_name}")
             connection.commit()
         return connection
@@ -73,8 +69,7 @@ def create_and_use_database(db_name):
         print(f"Error creating database: {e}")
         raise
 
-# Upload endpoint for MySQL RDS
-# Test using curl:
+
 """
 curl -X POST \
   -F "db_name=database2" \
@@ -99,7 +94,6 @@ def upload_to_rds():
         if not files:
             return jsonify({"error": "No files selected"}), 400
 
-        # Create and connect to the specified database
         connection = create_and_use_database(db_name)
         
         upload_results = []
@@ -117,7 +111,6 @@ def upload_to_rds():
                 table_name = file.filename.rsplit('.', 1)[0]
                 df = pd.read_csv(io.StringIO(file.stream.read().decode("UTF8")))
 
-                # Create table schema based on DataFrame
                 columns = []
                 for column, dtype in df.dtypes.items():
                     if dtype == 'int64':
@@ -171,7 +164,6 @@ def upload_to_rds():
             connection.close()
             print("RDS connection closed")
 
-# Sample curl command
     
 """
 curl -X POST http://127.0.0.1:5000/api/query-mysql \
@@ -196,7 +188,6 @@ def query_mysql():
         db_name = data['db_name']
         schema = get_mysql_schema(db_name)
         query =  query_generator(query_str,schema,database="sql",option=1)
-        # Pass database name to connection function
         connection = create_and_use_database(db_name)
 
         try:
@@ -235,16 +226,13 @@ def get_mysql_schema(db_name):
         cursor = connection.cursor()
         schema = {}
         
-        # Get all tables in the database
         cursor.execute("SHOW TABLES")
         tables = cursor.fetchall()
         
         for table in tables:
             table_name = table[0]
-            # Get columns for each table
             cursor.execute(f"SHOW COLUMNS FROM {table_name}")
             columns = cursor.fetchall()
-            # Extract column names
             schema[table_name] = [column[0] for column in columns]
             
         return schema
@@ -286,8 +274,6 @@ def connect_mongodb(db_name):
         raise e
 
 
-# Upload endpoint
-# Test using curl:
 """
 curl -X POST \
   -F "db_name=database2" \
@@ -312,7 +298,6 @@ def upload_data():
         if not files:
             return jsonify({"error": "No files selected"}), 400
 
-        # Connect to MongoDB with specified database
         client, db = connect_mongodb(db_name)
         
         upload_results = []
@@ -362,7 +347,6 @@ def upload_data():
             client.close()
             print("MongoDB connection closed")
 
-# Executes MongoDB aggregation pipeline query and returns results            
 """
 curl -X POST http://127.0.0.1:5000/api/query-mongodb \
 -H "Content-Type: application/json" \
@@ -381,7 +365,6 @@ def query_data():
                 "error": "Missing required fields. Please provide db_name and query string"
             }), 400
             
-        # Remove escaped quotes if present
         query_str = data['query']
         db_name = data['db_name']
         schema = get_collections_schema(db_name)
@@ -404,7 +387,6 @@ def query_data():
                     return jsonify({
                         "error": str(e)
                     }), 400
-        # Connect to MongoDB with specified database    
         client, db = connect_mongodb(db_name)
             
         collection = db[collection_name]
@@ -437,12 +419,9 @@ def get_collections_schema(db_name):
         client, db = connect_mongodb(db_name)
         collections_schema = {}
         
-        # Get all collections in the database
         for collection_name in db.list_collection_names():
-            # Get one document from collection to extract fields
             sample_doc = db[collection_name].find_one()
             if sample_doc:
-                # Remove _id field and get all column names
                 sample_doc.pop('_id', None)
                 collections_schema[collection_name] = list(sample_doc.keys())
             
@@ -474,7 +453,6 @@ def get_schema(db_name):
 
 
 from flask import Flask, jsonify, request, render_template        
-# Add route for the main page
 @app.route('/')
 def index():
     return render_template('chatdb.html')

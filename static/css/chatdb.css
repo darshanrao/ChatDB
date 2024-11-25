@@ -2,7 +2,6 @@ body {
     font-family: Arial, sans-serif;
     margin: 0;
     padding: 0;
-    /* display: flex; */
     justify-content: center;
     align-items: center;
     height: 100vh;
@@ -120,7 +119,6 @@ body {
 }
 
 #upload-btn{
-    /* margin-left: 10px; */
     padding: 10px 15px;
     margin-top: 10px;
     height: 37px;
@@ -142,28 +140,6 @@ textarea {
     margin-bottom: 10px;
     font-size: 14px;
 }
-
-/* #table-display {
-    text-align: center;
-    color: rgb(0, 11, 111);
-}
-
-table {
-    width: 90%;
-    border-collapse: collapse;
-    margin-top: 20px;
-}
-
-table th,
-table td {
-    border: 1px solid #ccc;
-    padding: 8px;
-    text-align: left;
-}
-
-table th {
-    background-color: #f4f4f4;
-} */
 
 #table-display {
     text-align: center;
