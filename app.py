@@ -204,7 +204,6 @@ def query_mysql():
     connection = None
     try:
         data = request.get_json()
-
         if not data or 'query' not in data or 'db_name' not in data:
             return jsonify({
                 "error": "Missing required fields. Please provide db_name and query string"
@@ -393,7 +392,6 @@ def query_data():
     client = None
     try:
         data = request.get_json()
-
         if not data or 'query' not in data or 'db_name' not in data:
             return jsonify({
                 "error": "Missing required fields. Please provide db_name and query string"

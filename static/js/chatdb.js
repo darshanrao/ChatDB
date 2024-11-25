@@ -6,6 +6,7 @@ const mysqlTab = document.getElementById('mysqlTab');
 const mongodbTab = document.getElementById('mongodbTab');
 
 let activeTab = 'mysql'; 
+let currDatabase = 'database2';
 
 function switchTab(selectedTab) {
     if (selectedTab === 'mysql') {
@@ -30,45 +31,52 @@ sendBtn.addEventListener('click', () => {
   const query = userInput.value.trim();
   if (!query) return;
 
-  try {
-      // Parse the input as sJSON
-      const queryData = JSON.parse(query);
-      
+  const useDatabaseRegex = /^USE DATABASE\s+['"]?([\w-]+)['"]?;?$/i;
+  const match = query.match(useDatabaseRegex);
+
+  if (match) {
       addMessage(query, 'user-message');
-      userInput.value = '';
-      if (activeTab == 'mysql') {
-      // Call Flask backend with MongoDB query endpoint
-      fetch('/api/query-mysql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(queryData)
-      })
-    
-      .then(response => response.json())
-      .then(data => {
-          // addMessage(data.response, 'bot-message'); 
-          addMessage("Query Executed", 'bot-message');
-          displayTable(data.results);
-      })
-      .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));
+      currDatabase = match[1]; 
+      addMessage(`Switched to database: ${currDatabase}`, 'bot-message');
+      userInput.innerText = '';
+      return; 
+  }
+  else {
+    console.log("Not a match");
+    try {        
+        addMessage(query, 'user-message');
+        userInput.value = '';
+        if (activeTab == 'mysql') {
+        fetch('/api/query-mysql', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({"db_name": currDatabase, "query": query})
+        })
+      
+        .then(response => response.json())
+        .then(data => {
+            addMessage("Query Executed", 'bot-message');
+            displayTable(data.results);
+        })
+        .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));
+      }
+      else {
+        fetch('/api/query-mongodb', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({"db_name": currDatabase, "query": query})
+        })
+      
+        .then(response => response.json())
+        .then(data => {
+            addMessage("Query Executed", 'bot-message');
+            displayTable(data.results);
+        })
+        .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));
+      }
+    } catch (err) {
+        addMessage('Error: Please provide a valid JSON query format.', 'bot-message');
     }
-    else {
-      fetch('/api/query-mongodb', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(queryData)
-      })
-    
-      .then(response => response.json())
-      .then(data => {
-          addMessage(data.response, 'bot-message'); 
-          addMessage("Query Executed", 'bot-message');
-          displayTable(data.results);
-      })
-      .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));
-    }
-  } catch (err) {
-      addMessage('Error: Please provide a valid JSON query format.', 'bot-message');
   }
 });
 
