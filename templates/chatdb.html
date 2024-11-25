@@ -11,33 +11,37 @@
   </head>
 
   <body>
-    <div id="chat-container">
-      <div class="tabs">
-        <button id="mysqlTab" class="tab active">MySQL</button>
-        <button id="mongodbTab" class="tab">MongoDB</button>
+    <header id="app-header">
+      <h1>ChatDB</h1>
+    </header>
+    <div id="maincontainer">
+      <div id="chat-container">
+        <div class="tabs">
+          <button id="mysqlTab" class="tab active">MySQL</button>
+          <button id="mongodbTab" class="tab">MongoDB</button>
+        </div>
+        <div id="chat-window">
+          <div id="messages"></div>
+        </div>
+        <div id="input-area">
+          <textarea
+            id="user-input"
+            placeholder="What would you like to do ?"
+          ></textarea>
+          <button id="send-btn">Send</button>
+          <input
+            type="file"
+            id="upload-file"
+            accept=".csv"
+            style="display: none"
+          />
+          <button id="upload-btn">Upload CSV</button>
+        </div>
       </div>
-      <div id="chat-window">
-        <div id="messages"></div>
+      <div id="table-display">
+        <h2>Query Results</h2>
+        <div id="results"></div>
       </div>
-      <div id="input-area">
-        <input
-          type="text"
-          id="user-input"
-          placeholder="What would you like to do ?"
-        />
-        <button id="send-btn">Send</button>
-        <input
-          type="file"
-          id="upload-file"
-          accept=".csv"
-          style="display: none"
-        />
-        <button id="upload-btn">Upload CSV</button>
-      </div>
-    </div>
-    <div id="table-display">
-      <h2>Query Results</h2>
-      <div id="results"></div>
     </div>
     <script src="{{ url_for('static', filename='js/chatdb.js') }}"></script>
   </body>

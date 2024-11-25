@@ -46,7 +46,7 @@ sendBtn.addEventListener('click', () => {
     
       .then(response => response.json())
       .then(data => {
-          addMessage(data.response, 'bot-message'); 
+          // addMessage(data.response, 'bot-message'); 
           addMessage("Query Executed", 'bot-message');
           displayTable(data.results);
       })
