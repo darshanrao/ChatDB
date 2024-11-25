@@ -10,3 +10,6 @@ __pycache__/
 fodm/
 server/.env
 env/
+
+trash
+trash/

@@ -640,11 +640,7 @@ schema_dict = {
 #     "InvalidColumn FirstName",  # Contains invalid column
 # ]
 
-# # Run test cases
-# for query in test_queries:
-#     print(f"\nQuery: {query}")
-#     result = check_join_needed(query, schema_dict)
-#     print(f"Join needed: {result}")
+
 
 def sql_to_mongo(sql_query):
     """
@@ -667,15 +663,16 @@ def sql_to_mongo(sql_query):
     )
     if match_order_limit:
         collection, column_name, order, limit = match_order_limit.groups()
-        sort_order = 1 if order and order.upper() == "ASC" else -1
+        sort_order = 1 
         return f"db.{collection}.aggregate([{{ '$sort': {{ '{column_name}': {sort_order} }} }}, {{ '$limit': {int(limit)} }}]);"
     
     # 3
     # Handle SELECT COUNT(*) FROM table_name
-    match_count_all = re.match(r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)", sql_query, re.IGNORECASE)
+    match_count_all = re.match(r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)", sql_query.strip(), re.IGNORECASE)
     if match_count_all:
         collection = match_count_all.group(1)
-        return f"db.{collection}.aggregate([{{ '$count': 'total_count' }}]);"
+        return f"db.{collection}.countDocuments({{}});"
+
     
 
     #4
@@ -692,7 +689,7 @@ def sql_to_mongo(sql_query):
     match_not_equal = re.match(r"SELECT\s+\*\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+!=\s+(.+?)", sql_query, re.IGNORECASE)
     if match_not_equal:
         collection, column_name, value = match_not_equal.groups()
-        return f"db.{collection}.aggregate([{{ '$match': {{ '{column_name}': {{ '$ne': {value} }} }} }}]);"
+        return f"db.{collection}.aggregate([{{ '$match': {{ {column_name}: {{ '$ne': {value} }} }} }}]);"
     
     # 7
     # Handle SELECT * FROM table_name WHERE column_name IS NULL
@@ -709,15 +706,8 @@ def sql_to_mongo(sql_query):
         return f"db.{collection}.aggregate([{{ '$match': {{ '{column_name}': {{ '$exists': true, '$ne': null }} }} }}]);"
     
     
-    # 1 - 8
-    
-    ####################
-    
     
     # 9
-    # Handle SELECT * FROM table_name WHERE column_name LIKE '%pattern%'
-    # Handle SELECT * FROM table_name WHERE column_name LIKE '%pattern%'
-    # Handle SELECT * FROM table_name WHERE column_name IN (value1, value2, value3)
     # Handle SELECT * FROM table_name WHERE column_name IN (value1, value2, value3)
     match_in = re.match(
         r"SELECT\s+\*\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+IN\s+\((.+)\)", 
@@ -732,144 +722,98 @@ def sql_to_mongo(sql_query):
         return f"db.{collection}.aggregate([{{ '$match': {{ '{column_name}': {{ '$in': {value_list} }} }} }}]);"
     
     # 10
-    # Handle SELECT column_name, COUNT(aggregate_column) FROM table_name GROUP BY group_column
-    match_group_by = re.match(
-        r"SELECT\s+(\w+)\s*,\s*COUNT\((\w+)\)\s+FROM\s+(\w+)\s+GROUP\s+BY\s+(\w+)", 
-        sql_query.strip(), 
+    
+   # Handle SELECT with WHERE clause and LIKE operator
+    # Handle SELECT with WHERE clause and LIKE operator
+    match_like = re.match(
+        r"SELECT\s+\*\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+LIKE\s+'(.+)'",
+        sql_query.strip(),
         re.IGNORECASE
     )
-    if match_group_by:
-        group_column, aggregate_column, collection, group_by_column = match_group_by.groups()
+    if match_like:
+        collection, field, pattern = match_like.groups()
+
+        # Convert SQL LIKE pattern to MongoDB regex (only handle prefix match here)
+        mongo_regex = pattern.rstrip('%')  # Remove trailing '%' for starts-with regex
+
         return (
-            f"db.{collection}.aggregate(["
-            f"{{ '$group': {{ '_id': '${group_column}', 'count': {{ '$sum': 1 }} }} }},"
-            f"{{ '$project': {{ '{group_column}': '$_id', '_id': 0, 'count': 1 }} }}"
-            f"]);"
+            f"db.{collection}.find({{ {field}: {{ $regex: \"^{mongo_regex}\" }} }});"
         )
 
+    
     # 11
-    # Handle SELECT column_name, AVG(aggregate_column) FROM table_name GROUP BY group_column
-    match_group_avg = re.match(
-        r"SELECT\s+(\w+)\s*,\s*AVG\((\w+)\)\s+FROM\s+(\w+)\s+GROUP\s+BY\s+(\w+)", 
-        sql_query.strip(), 
+    
+    # Handle SELECT with WHERE clause and greater-than condition
+    match_greater_than = re.match(
+        r"SELECT\s+\\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s>\s*(\d+)",
+        sql_query.strip(),
         re.IGNORECASE
     )
-    if match_group_avg:
-        group_column, aggregate_column, collection, group_by_column = match_group_avg.groups()
-        return (
-            f"db.{collection}.aggregate(["
-            f"{{ '$group': {{ '_id': '${group_column}', 'avg_salary': {{ '$avg': '${aggregate_column}' }} }} }},"
-            f"{{ '$project': {{ '{group_column}': '$_id', '_id': 0, 'avg_salary': 1 }} }}"
-            f"]);"
-        )
+    if match_greater_than:
+        collection, field, value = match_greater_than.groups()
 
+        # Convert to MongoDB query
+        return (
+            f"db.{collection}.find({{ {field}: {{ $gt: {value} }} }});"
+        )
+    
+    
+    # 12
+    
+    # Handle SELECT with WHERE clause and less-than condition
+    match_less_than = re.match(
+        r"SELECT\s+\\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s<\s*(\d+)",
+        sql_query.strip(),
+        re.IGNORECASE
+    )
+    if match_less_than:
+        collection, field, value = match_less_than.groups()
+
+        # Convert to MongoDB query
+        return (
+            f"db.{collection}.find({{ {field}: {{ $lt: {value} }} }});"
+        )
     
     
     # TEMPLATES FOR JOINS
     
     # 1
     
-    # Handle SELECT with JOIN
+   # Template to handle SELECT with JOIN and WHERE clause
     match_join = re.match(
-        r"SELECT\s+(\w+\.\w+),\s+(\w+\.\w+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+\.\w+)\s*=\s*(\w+\.\w+)\s+WHERE\s+(\w+)\s*=\s*'(.+)'",
+        r"SELECT\s+(\w+\.\w+),\s+(\w+\.\w+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+\.\w+)\s*=\s*(\w+\.\w+)\s+WHERE\s+(\w+)\s*=\s*('?)(.+?)\8",
         sql_query.strip(),
         re.IGNORECASE
     )
     if match_join:
-        select_field1, select_field2, collection1, collection2, join_field1, join_field2, filter_field, filter_value = match_join.groups()
-        return (
-            f"db.{collection1}.aggregate(["
-            f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{join_field1.split('.')[1]}', 'foreignField': '{join_field2.split('.')[1]}', 'as': 'joined_docs' }} }},"
-            f"{{ '$unwind': '$joined_docs' }},"
-            f"{{ '$match': {{ '{filter_field}': '{filter_value}' }} }},"
-            f"{{ '$project': {{ '{select_field1.split('.')[1]}': 1, '{select_field2.split('.')[1]}': '$joined_docs.{select_field2.split('.')[1]}', '_id': 0 }} }}"
-            f"]);"
-        )
+        select_field1, select_field2, collection1, collection2, join_field1, join_field2, filter_field, _, filter_value = match_join.groups()
 
-    # 3
-    # Handle SELECT with JOIN and IS NULL condition
-    match_join_is_null = re.match(
-        r"SELECT\s+(\w+\.\w+),\s+(\w+\.\w+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+\.\w+)\s*=\s*(\w+\.\w+)\s+WHERE\s+(\w+)\s+IS\s+NULL",
-        sql_query.strip(),
-        re.IGNORECASE
-    )
-    if match_join_is_null:
-        select_field1, select_field2, collection1, collection2, join_field1, join_field2, filter_field = match_join_is_null.groups()
-        return (
-            f"db.{collection1}.aggregate(["
-            f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{join_field1.split('.')[1]}', 'foreignField': '{join_field2.split('.')[1]}', 'as': 'joined_docs' }} }},"
-            f"{{ '$unwind': '$joined_docs' }},"
-            f"{{ '$match': {{ '{filter_field}': {{ '$exists': true, '$eq': null }} }} }},"
-            f"{{ '$project': {{ '{select_field1.split('.')[1]}': 1, '{select_field2.split('.')[1]}': '$joined_docs.{select_field2.split('.')[1]}', '_id': 0 }} }}"
-            f"]);"
-        )
+        # Convert numeric filter values to integers if applicable
+        try:
+            filter_value = int(filter_value)
+        except ValueError:
+            filter_value = f'"{filter_value}"'  # Use double quotes for strings
 
-    #4
-    # Handle SELECT with JOIN and IS NOT NULL condition
-    match_join_is_not_null = re.match(
-        r"SELECT\s+(\w+\.\w+),\s+(\w+\.\w+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+\.\w+)\s*=\s*(\w+\.\w+)\s+WHERE\s+(\w+)\s+IS\s+NOT\s+NULL",
-        sql_query.strip(),
-        re.IGNORECASE
-    )
-    if match_join_is_not_null:
-        select_field1, select_field2, collection1, collection2, join_field1, join_field2, filter_field = match_join_is_not_null.groups()
+        # Handle splitting fields
+        local_field = join_field1.split('.')[1] if '.' in join_field1 else join_field1
+        foreign_field = join_field2.split('.')[1] if '.' in join_field2 else join_field2
+        filter_field_name = filter_field.split('.')[1] if '.' in filter_field else filter_field
+        select_field1_name = select_field1.split('.')[1] if '.' in select_field1 else select_field1
+        select_field2_name = select_field2.split('.')[1] if '.' in select_field2 else select_field2
+
         return (
             f"db.{collection1}.aggregate(["
-            f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{join_field1.split('.')[1]}', 'foreignField': '{join_field2.split('.')[1]}', 'as': 'joined_docs' }} }},"
-            f"{{ '$unwind': '$joined_docs' }},"
-            f"{{ '$match': {{ '{filter_field}': {{ '$exists': true, '$ne': null }} }} }},"
-            f"{{ '$project': {{ '{select_field1.split('.')[1]}': 1, '{select_field2.split('.')[1]}': '$joined_docs.{select_field2.split('.')[1]}', '_id': 0 }} }}"
-            f"]);"
-        )
-    
-    ########
-    
-    #5
-    # Handle SELECT with JOIN and IN condition
-    match_join_in = re.match(
-        r"SELECT\s+(\w+\.\w+),\s+(\w+\.\w+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+\.\w+)\s*=\s*(\w+\.\w+)\s+WHERE\s+(\w+)\s+IN\s+\((.+)\)",
-        sql_query.strip(),
-        re.IGNORECASE
-    )
-    if match_join_in:
-        select_field1, select_field2, collection1, collection2, join_field1, join_field2, filter_field, filter_values = match_join_in.groups()
-        value_list = [v.strip().strip("'\"") for v in filter_values.split(",")]  # Split and clean values
-        return (
-            f"db.{collection1}.aggregate(["
-            f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{join_field1.split('.')[1]}', 'foreignField': '{join_field2.split('.')[1]}', 'as': 'joined_docs' }} }},"
-            f"{{ '$unwind': '$joined_docs' }},"
-            f"{{ '$match': {{ '{filter_field}': {{ '$in': {value_list} }} }} }},"
-            f"{{ '$project': {{ '{select_field1.split('.')[1]}': 1, '{select_field2.split('.')[1]}': '$joined_docs.{select_field2.split('.')[1]}', '_id': 0 }} }}"
-            f"]);"
-        )
-    
-    #6
-    # Handle SELECT with JOIN and NOT IN condition
-    match_join_not_in = re.match(
-        r"SELECT\s+(\w+\.\w+),\s+(\w+\.\w+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+\.\w+)\s*=\s*(\w+\.\w+)\s+WHERE\s+(\w+)\s+NOT\s+IN\s+\((.+)\)",
-        sql_query.strip(),
-        re.IGNORECASE
-    )
-    if match_join_not_in:
-        select_field1, select_field2, collection1, collection2, join_field1, join_field2, filter_field, filter_values = match_join_not_in.groups()
-        value_list = [v.strip().strip("'\"") for v in filter_values.split(",")]  # Split and clean values
-        return (
-            f"db.{collection1}.aggregate(["
-            f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{join_field1.split('.')[1]}', 'foreignField': '{join_field2.split('.')[1]}', 'as': 'joined_docs' }} }},"
-            f"{{ '$unwind': '$joined_docs' }},"
-            f"{{ '$match': {{ '{filter_field}': {{ '$nin': {value_list} }} }} }},"
-            f"{{ '$project': {{ '{select_field1.split('.')[1]}': 1, '{select_field2.split('.')[1]}': '$joined_docs.{select_field2.split('.')[1]}', '_id': 0 }} }}"
+            f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{local_field}', 'foreignField': '{foreign_field}', 'as': '{collection2}' }} }},"
+            f"{{ '$unwind': '${collection2}' }},"
+            f"{{ '$match': {{ '{filter_field_name}': {filter_value} }} }},"
+            f"{{ '$project': {{ '{select_field1_name}': 1, '{select_field2_name}': '${collection2}.{select_field2_name}' }} }}"
             f"]);"
         )
 
 
-
-
-        # Raise error for unsupported queries
-    print(f"Unsupported query format: {sql_query}")
+    # Raise error if no match
+    print(f"Unsupported query format: {sql_query.strip()}")
     raise ValueError("Unsupported query format.")
-
-
 
     
 # query_test="List top 5 rows in students"
