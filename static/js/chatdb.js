@@ -42,7 +42,6 @@ sendBtn.addEventListener('click', () => {
       return; 
   }
   else {
-    console.log("Not a match");
     try {        
         addMessage(query, 'user-message');
         userInput.value = '';
@@ -55,7 +54,8 @@ sendBtn.addEventListener('click', () => {
       
         .then(response => response.json())
         .then(data => {
-            addMessage("Query Executed", 'bot-message');
+            addMessage( data.query, 'bot-message');
+
             displayTable(data.results);
         })
         .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));
@@ -69,7 +69,7 @@ sendBtn.addEventListener('click', () => {
       
         .then(response => response.json())
         .then(data => {
-            addMessage("Query Executed", 'bot-message');
+            addMessage(data.query, 'bot-message');
             displayTable(data.results);
         })
         .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));
