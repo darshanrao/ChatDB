@@ -41,8 +41,8 @@ def query_generator(query_str, schema, database,option):
     if option == 0:
         if database == "sql":
             query =  query_function_sql(schema, query_str)
-        # elif database == "mongodb":
-            # query = query_function_mongodb(schema,query_str)
+        elif database == "mongodb":
+            query = sql_to_mongo(query_function_sql(data_schema=schema,query=query_str))
     else:
         decode= QueryER()
         query = decode.decompose(query_str,dataschema=convert_schema_to_string(schema),database=database)

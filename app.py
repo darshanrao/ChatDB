@@ -187,7 +187,7 @@ def query_mysql():
         query_str = data['query']
         db_name = data['db_name']
         schema = get_mysql_schema(db_name)
-        query =  query_generator(query_str,schema,database="sql",option=1)
+        query =  query_generator(query_str,schema,database="sql",option=0)
         connection = create_and_use_database(db_name)
 
         try:
@@ -376,7 +376,7 @@ def query_data():
 
         while attempts < max_attempts and not success:
             try:
-                query = query_generator(query_str, schema, database="mongodb", option=1)
+                query = query_generator(query_str, schema, database="mongodb", option=0)
                 query = query.replace('\\"', '"')
                 print(query)
                 collection_name, pipeline = extract_mongo_query(query)
