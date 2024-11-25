@@ -26,23 +26,6 @@ CORS(app)
 
 
 
-# connection = None
-
-# try:
-#         connection = pymysql.connect(
-#             host=os.getenv('RDS_HOST'),
-#         port=int(os.getenv('RDS_PORT')), 
-#             user=os.getenv('RDS_USER'),
-#             password=os.getenv('RDS_PASSWORD'),
-#             database=os.getenv('RDS_DATABASE'),
-#             connect_timeout=10,  # Add timeout parameter
-#             read_timeout=10,
-#             write_timeout=10
-#         )
-#         print("Connected to RDS successfully!")
-# except pymysql.Error as e:
-#     print(f"Could not connect to database: {e}")
-
 
 def get_RDS_connection_without_db():
     try:
@@ -225,6 +208,7 @@ def query_mysql():
                 results = [dict(zip(columns, row)) for row in rows]
 
                 return jsonify({
+                    "query": query,
                     "results": results, 
                     "count": len(results)
                 }), 200
@@ -432,6 +416,7 @@ def query_data():
                 doc['_id'] = str(doc['_id'])
         
         return jsonify({
+            "query": query,
             "results": results,
             "count": len(results)
         }), 200

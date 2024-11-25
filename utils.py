@@ -2,6 +2,7 @@ import re
 import json
 
 from rex import QueryER
+from regex import *
 def extract_mongo_query(query_str):
     """
     Extract collection name and pipeline array from MongoDB query string
@@ -38,8 +39,10 @@ def extract_mongo_query(query_str):
 def query_generator(query_str, schema, database,option):
     
     if option == 0:
-        print("Kates function")
-        return "Not coded"
+        if database == "sql":
+            query =  query_function_sql(schema, query_str)
+        # elif database == "mongodb":
+            # query = query_function_mongodb(schema,query_str)
     else:
         decode= QueryER()
         query = decode.decompose(query_str,dataschema=convert_schema_to_string(schema),database=database)

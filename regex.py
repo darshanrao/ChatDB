@@ -1,7 +1,14 @@
 
+import pandas as pd
+import glob
+
+from collections import defaultdict
+import os
+import re
 
 
-def check_join_needed(query, schema_dict):
+import textwrap
+def check_join_needed_func(schema_dict,query):
     """
     Checks if the query columns are spread across multiple CSV files using a predefined schema dictionary.
 
@@ -32,85 +39,42 @@ def check_join_needed(query, schema_dict):
     return join_needed
 
 
-def query_function(directory, query):
+def build_column_table_mapping(schema_dict):
+    """
+    Converts schema dictionary into column to table mapping.
+    :param schema_dict: Dictionary containing table names as keys and list of columns as values 
+    :return: Dictionary mapping column names to table names and dictionary of table dataframes
+    """
+    mapping = defaultdict(list)
+    tables = {}
+    
+    # Build column -> table mapping from schema
+    for table_name, columns in schema_dict.items():
+        # Create empty dataframe with schema columns
+        tables[table_name] = pd.DataFrame(columns=columns)
+        for column in columns:
+            mapping[column].append(table_name)
+            
+    return mapping, tables
 
-    csv_folder = directory 
+def query_function_sql(data_schema, query):
+
+    # csv_folder = directory 
 
     sample_queries = [query]
 
     test_queries = [query]
 
 
-    def check_join_needed(directory_path, query):
-        """
-        Checks if the query columns are spread across multiple CSV files.
 
-        Parameters:
-            directory_path (str): Path to the directory containing CSV files.
-            query (str): User query containing column names and random words.
+    # import pdb; pdb.set_trace()
 
-        Returns:
-            bool: True if a join is needed (columns spread across multiple files), False otherwise.
-        """
-        # Extract column names from the query
-        query_columns = set(query.split())
-
-        # Dictionary to map file names to their columns
-        file_columns_map = {}
-
-        # Iterate over all files in the directory
-        for file in os.listdir(directory_path):
-            if file.endswith('.csv'):
-                file_path = os.path.join(directory_path, file)
-                try:
-                    # Read only the header of the CSV to get column names
-                    df = pd.read_csv(file_path, nrows=0)
-                    file_columns_map[file] = set(df.columns)
-                except Exception as e:
-                    print(f"Error reading {file}: {e}")
-
-        # Identify which file contains which columns
-        files_with_columns = []
-
-        for column in query_columns:
-            for file, columns in file_columns_map.items():
-                if column in columns:
-                    files_with_columns.append(file)
-                    break
-
-        # Check if columns are spread across multiple files
-        unique_files = set(files_with_columns)
-
-        join_needed = len(unique_files) > 1
-        return join_needed
-
-
-
-
-
-    check_join_needed = check_join_needed(directory, query)
+    check_join_needed = check_join_needed_func(data_schema, query)
 
     if check_join_needed == True:
 
         print("Join")
 
-        def build_column_table_mapping(csv_folder):
-            """
-            Scans all CSV files in the given folder to build a mapping of columns to tables.
-            :param csv_folder: Path to the folder containing CSV files (each file is a table).
-            :return: Dictionary mapping column names to table names and a dictionary of dataframes for each table.
-            """
-            mapping = defaultdict(list)
-            tables = {}
-            for file in glob.glob(f"{csv_folder}/*.csv"):
-                table_name = file.split("/")[-1].replace(".csv", "")
-                df = pd.read_csv(file)
-                tables[table_name] = df
-                for column in df.columns:
-                    mapping[column].append(table_name)
-            return mapping, tables
-        
-        import re
         
         def auto_generate_query(raw_query, column_table_mapping, tables):
             """
@@ -187,14 +151,15 @@ def query_function(directory, query):
 
             return formatted_query.strip()
 
-        column_table_mapping, tables = build_column_table_mapping(csv_folder)
+        column_table_mapping, tables = build_column_table_mapping(data_schema)
 
 
         # Process sample queries
         for query in sample_queries:
             try:
                 resolved_query = auto_generate_query(query, column_table_mapping, tables)
-                print(f"Input: {query}\nResolved Query:\n{resolved_query}\n")
+                return resolved_query
+                # print(f"Input: {query}\nResolved Query:\n{resolved_query}\n")
             except ValueError as e:
                 print(f"Error processing query '{query}': {e}\n")
 
@@ -202,8 +167,7 @@ def query_function(directory, query):
 
         print("No Join")
 
-        import re
-        import textwrap
+
 
         # Define templates with proper indentation using textwrap.dedent
         query_templates = [
@@ -644,6 +608,206 @@ def query_function(directory, query):
             if sql_query:
                 #print(f"User Query: {user_query}")
                 #print(f"Generated SQL Query:\n{sql_query}\n")
-                print(sql_query)
+                # print(sql_query)
+                
+                return sql_query
             #else:
                 #print(f"No match found for query: {user_query}")
+                
+
+
+
+# Test schema dictionary
+schema_dict = {
+    "courses": ["CourseID", "CourseName", "InstructorID", "InstructorName", "CreditHours"],
+    "enrollments": ["EnrollmentID", "StudentID", "CourseID", "Semester", "Grade"],
+    "students": ["StudentID", "FirstName", "LastName", "Email", "Major", "AdvisorID", "AdvisorName"]
+}
+
+# # Test cases to try different scenarios
+# test_queries = [
+#     # Single table query
+#     "FirstName LastName Major",  # Only from students table
+    
+#     # Multi-table query requiring join
+#     "FirstName Grade CourseID",  # From students, enrollments tables
+    
+#     # Multi-table query requiring multiple joins 
+#     "FirstName CourseName Grade", # From students, courses, enrollments tables
+    
+#     # Invalid column names
+#     "InvalidColumn FirstName",  # Contains invalid column
+# ]
+
+# # Run test cases
+# for query in test_queries:
+#     print(f"\nQuery: {query}")
+#     result = check_join_needed(query, schema_dict)
+#     print(f"Join needed: {result}")
+
+def sql_to_mongo(sql_query):
+    """
+    Convert SQL queries to MongoDB queries.
+    Supports operations like aggregation for SQL queries with aggregate functions such as MAX, MIN.
+    Handles conditions like BETWEEN, COUNT(*) aggregation, LIKE operator, IS NULL or IS NOT NULL,
+    ORDER BY, LIMIT, and inequality checks.
+
+    Args:
+        sql_query (str): The SQL query string.
+
+    Returns:
+        dict: A dictionary representing the MongoDB query.
+    """
+
+    # Handle SQL SELECT * FROM table_name LIMIT 5;
+    match_limit = re.match(r"SELECT\s+(.+?)\s+FROM\s+(\w+)\s+LIMIT\s+(\d+)", sql_query.strip(), re.IGNORECASE)
+    if match_limit:
+        fields, collection, limit = match_limit.groups()
+        return {
+            'collection': collection,
+            'filter': {},  # No filter
+            'projection': {field.strip(): 1 for field in fields.split(',')} if fields.strip() != "*" else {},
+            'limit': int(limit)
+        }
+
+    # Handle SQL SELECT * FROM table_name ORDER BY column_name LIMIT 5;
+    match_order_limit = re.match(r"SELECT\s+(.+?)\s+FROM\s+(\w+)\s+ORDER\s+BY\s+(\w+)\s+(ASC|DESC)\s+LIMIT\s+(\d+)", sql_query.strip(), re.IGNORECASE)
+    if match_order_limit:
+        fields, collection, column_name, order, limit = match_order_limit.groups()
+        return {
+            'collection': collection,
+            'filter': {},  # No filter
+            'projection': {field.strip(): 1 for field in fields.split(',')} if fields.strip() != "*" else {},
+            'sort': [(column_name, 1 if order.upper() == 'ASC' else -1)],
+            'limit': int(limit)
+        }
+
+    # Handle SQL SELECT COUNT(*) FROM table_name;
+    match_count_all = re.match(r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)", sql_query.strip(), re.IGNORECASE)
+    if match_count_all:
+        collection = match_count_all.groups()[0]
+        return {
+            'collection': collection,
+            'aggregate': [{'$count': 'total_count'}]
+        }
+
+    # Handle SQL SELECT * WHERE column_name LIKE '...%' or '%...'
+    match_like_start = re.match(r"SELECT\s+(.+?)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+LIKE\s+'(.+?)'", sql_query.strip(), re.IGNORECASE)
+    if match_like_start:
+        fields, collection, column_name, pattern = match_like_start.groups()
+        pattern = pattern.replace("%", ".*").replace(".", r"\.")  # Replace "%" with ".*" and escape "."
+        return {
+            'collection': collection,
+            'filter': {column_name: {'$regex': pattern}},
+            'projection': {field.strip(): 1 for field in fields.split(',')} if fields.strip() != "*" else {}
+        }
+
+    # Handle SQL SELECT COUNT(*) WHERE column_name LIKE '...%'
+    match_count_like_start = re.match(r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+LIKE\s+'(.+?)'", sql_query.strip(), re.IGNORECASE)
+    if match_count_like_start:
+        collection, column_name, pattern = match_count_like_start.groups()
+        pattern = pattern.replace("%", ".*").replace(".", r"\.")
+        return {
+            'collection': collection,
+            'aggregate': [
+                {'$match': {column_name: {'$regex': pattern}}},
+                {'$count': 'total_count'}
+            ]
+        }
+
+    # Handle SQL SELECT * WHERE column_name LIKE '%...'
+    match_like_end = re.match(r"SELECT\s+(.+?)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+LIKE\s+'(.+?)'", sql_query.strip(), re.IGNORECASE)
+    if match_like_end:
+        fields, collection, column_name, pattern = match_like_end.groups()
+        pattern = pattern.replace("%", ".*").replace(".", r"\.")
+        return {
+            'collection': collection,
+            'filter': {column_name: {'$regex': pattern}},
+            'projection': {field.strip(): 1 for field in fields.split(',')} if fields.strip() != "*" else {}
+        }
+
+    # Handle SQL SELECT COUNT(*) WHERE column_name LIKE '%...'
+    match_count_like_end = re.match(r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+LIKE\s+'(.+?)'", sql_query.strip(), re.IGNORECASE)
+    if match_count_like_end:
+        collection, column_name, pattern = match_count_like_end.groups()
+        pattern = pattern.replace("%", ".*").replace(".", r"\.")
+        return {
+            'collection': collection,
+            'aggregate': [
+                {'$match': {column_name: {'$regex': pattern}}},
+                {'$count': 'total_count'}
+            ]
+        }
+
+    # Handle SQL SELECT * WHERE column_name BETWEEN 1 AND 3
+    match_between = re.match(r"SELECT\s+(.+?)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+BETWEEN\s+(\d+)\s+AND\s+(\d+)", sql_query.strip(), re.IGNORECASE)
+    if match_between:
+        fields, collection, column_name, start, end = match_between.groups()
+        return {
+            'collection': collection,
+            'filter': {column_name: {'$gte': int(start), '$lte': int(end)}},
+            'projection': {field.strip(): 1 for field in fields.split(',')} if fields.strip() != "*" else {}
+        }
+
+    # Handle SQL SELECT COUNT(*) WHERE column_name BETWEEN 1 AND 3
+    match_count_between = re.match(r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+BETWEEN\s+(\d+)\s+AND\s+(\d+)", sql_query.strip(), re.IGNORECASE)
+    if match_count_between:
+        collection, column_name, start, end = match_count_between.groups()
+        return {
+            'collection': collection,
+            'aggregate': [
+                {'$match': {column_name: {'$gte': int(start), '$lte': int(end)}}},
+                {'$count': 'total_count'}
+            ]
+        }
+
+    # Handle SQL SELECT * WHERE column_name != '...'
+    match_not_equal = re.match(r"SELECT\s+(.+?)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+!=\s+'(.+?)'", sql_query.strip(), re.IGNORECASE)
+    if match_not_equal:
+        fields, collection, column_name, value = match_not_equal.groups()
+        return {
+            'collection': collection,
+            'filter': {column_name: {'$ne': value}},
+            'projection': {field.strip(): 1 for field in fields.split(',')} if fields.strip() != "*" else {}
+        }
+
+    # Handle SQL SELECT COUNT(*) WHERE column_name != '...'
+    match_count_not_equal = re.match(r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+!=\s+'(.+?)'", sql_query.strip(), re.IGNORECASE)
+    if match_count_not_equal:
+        collection, column_name, value = match_count_not_equal.groups()
+        return {
+            'collection': collection,
+            'aggregate': [
+                {'$match': {column_name: {'$ne': value}}},
+                {'$count': 'total_count'}
+            ]
+        }
+
+    # Handle SQL SELECT * WHERE column_name IS NULL
+    match_is_null = re.match(r"SELECT\s+(.+?)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+IS\s+NULL", sql_query.strip(), re.IGNORECASE)
+    if match_is_null:
+        fields, collection, column_name = match_is_null.groups()
+        return {
+            'collection': collection,
+            'filter': {column_name: {'$eq': None}},
+            'projection': {field.strip(): 1 for field in fields.split(',')} if fields.strip() != "*" else {}
+        }
+
+    # Handle SQL SELECT * WHERE column_name IS NOT NULL
+    match_is_not_null = re.match(r"SELECT\s+(.+?)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+IS\s+NOT\s+NULL", sql_query.strip(), re.IGNORECASE)
+    if match_is_not_null:
+        fields, collection, column_name = match_is_not_null.groups()
+        return {
+            'collection': collection,
+            'filter': {column_name: {'$ne': None}},
+            'projection': {field.strip(): 1 for field in fields.split(',')} if fields.strip() != "*" else {}
+        }
+
+    raise ValueError("Unsupported query format.")
+
+
+    
+query_test="get Grade, Major where Grade = 'A'"
+print(query_function_sql(data_schema=schema_dict,query=query_test))
+
+# print(sql_to_mongo(query_function_sql(data_schema=schema_dict,query=query_test)))
