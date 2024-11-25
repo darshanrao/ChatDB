@@ -668,10 +668,15 @@ def sql_to_mongo(sql_query):
     
     # 3
     # Handle SELECT COUNT(*) FROM table_name
-    match_count_all = re.match(r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)", sql_query.strip(), re.IGNORECASE)
+    match_count_all = re.match(
+        r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+);?$",  # Ensure the query ends after the table name
+        sql_query,
+        re.IGNORECASE
+    )
     if match_count_all:
         collection = match_count_all.group(1)
-        return f"db.{collection}.countDocuments({{}});"
+        # return f"db.{collection}.countDocuments({{}});"
+        return f"db.{collection}.aggregate([{{ $count: 'count' }}]);"
 
     
 
@@ -690,6 +695,24 @@ def sql_to_mongo(sql_query):
     if match_not_equal:
         collection, column_name, value = match_not_equal.groups()
         return f"db.{collection}.aggregate([{{ '$match': {{ {column_name}: {{ '$ne': {value} }} }} }}]);"
+    
+    
+    # 6
+    # Handle SELECT COUNT(*) FROM table_name WHERE column_name BETWEEN value1 AND value2
+    
+    match_count_between = re.match(
+        r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+BETWEEN\s+(\d+)\s+AND\s+(\d+);?$",
+        sql_query, 
+        re.IGNORECASE
+    )
+    if match_count_between:
+        collection, column_name, start, end = match_count_between.groups()
+        return (
+            f"db.{collection}.aggregate(["
+            f"{{ '$match': {{ '{column_name}': {{ '$gte': {int(start)}, '$lte': {int(end)} }} }} }},"
+            f"{{ '$count': 'total_count' }}"
+            f"]);"
+        )
     
     # 7
     # Handle SELECT * FROM table_name WHERE column_name IS NULL
@@ -722,30 +745,31 @@ def sql_to_mongo(sql_query):
         return f"db.{collection}.aggregate([{{ '$match': {{ '{column_name}': {{ '$in': {value_list} }} }} }}]);"
     
     # 10
-    
-   # Handle SELECT with WHERE clause and LIKE operator
     # Handle SELECT with WHERE clause and LIKE operator
     match_like = re.match(
-        r"SELECT\s+\*\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+LIKE\s+'(.+)'",
+        r"SELECT\s+\*\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+LIKE\s+'%(.+)%'",
         sql_query.strip(),
         re.IGNORECASE
     )
     if match_like:
+        
+        #print("%match%")
+        
         collection, field, pattern = match_like.groups()
 
         # Convert SQL LIKE pattern to MongoDB regex (only handle prefix match here)
         mongo_regex = pattern.rstrip('%')  # Remove trailing '%' for starts-with regex
 
         return (
-            f"db.{collection}.find({{ {field}: {{ $regex: \"^{mongo_regex}\" }} }});"
-        )
-
+            # f"db.{collection}.find({{ {field}: {{ $regex: \".*{mongo_regex}.*\" }} }});"
+            f"db.{collection}.aggregate([{{ $match: {{ {field}: {{ $regex: \"^{mongo_regex}\" }} }} }}]);"
+            )
     
     # 11
     
     # Handle SELECT with WHERE clause and greater-than condition
     match_greater_than = re.match(
-        r"SELECT\s+\\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s>\s*(\d+)",
+        r"SELECT\s+\*\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s*>\s*(\d+)",
         sql_query.strip(),
         re.IGNORECASE
     )
@@ -754,7 +778,8 @@ def sql_to_mongo(sql_query):
 
         # Convert to MongoDB query
         return (
-            f"db.{collection}.find({{ {field}: {{ $gt: {value} }} }});"
+            # f"db.{collection}.find({{ {field}: {{ $gt: {value} }} }});"
+            f"db.{collection}.aggregate([{{ $match: {{ {field}: {{ $gt: {value} }} }} }}]);"
         )
     
     
@@ -762,7 +787,7 @@ def sql_to_mongo(sql_query):
     
     # Handle SELECT with WHERE clause and less-than condition
     match_less_than = re.match(
-        r"SELECT\s+\\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s<\s*(\d+)",
+        r"SELECT\s+\*\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s*<\s*(\d+)",
         sql_query.strip(),
         re.IGNORECASE
     )
@@ -771,9 +796,231 @@ def sql_to_mongo(sql_query):
 
         # Convert to MongoDB query
         return (
-            f"db.{collection}.find({{ {field}: {{ $lt: {value} }} }});"
+            # f"db.{collection}.find({{ {field}: {{ $lt: {value} }} }});"
+            f"db.{collection}.aggregate([{{ $match: {{ {field}: {{ $lt: {value} }} }} }}]);"
+        )
+        
+    # 13
+    # Handle SELECT COUNT(DISTINCT column_name) AS alias FROM table_name
+    match_count_distinct = re.match(
+        r"SELECT\s+COUNT\(DISTINCT\s+(\w+)\)\s+AS\s+(\w+)\s+FROM\s+(\w+);?",
+        sql_query, re.IGNORECASE
+    )
+    if match_count_distinct:
+        column_name, alias, collection = match_count_distinct.groups()
+        return (
+            f"db.{collection}.aggregate(["
+            f"{{ '$group': {{ '_id': '${column_name}' }} }},"
+            f"{{ '$count': '{alias}' }}"
+            f"]);"
         )
     
+    
+    # 14
+    
+    # Handle SELECT SUM(column_name) AS alias FROM table_name
+    match_sum = re.match(
+        r"SELECT\s+SUM\((\w+)\)\s+AS\s+(\w+)\s+FROM\s+(\w+);?",
+        sql_query, re.IGNORECASE
+    )
+    if match_sum:
+        column_name, alias, collection = match_sum.groups()
+        return (
+            f"db.{collection}.aggregate(["
+            f"{{ '$group': {{ '_id': null, '{alias}': {{ '$sum': '${column_name}' }} }} }}"
+            f"]);"
+        )
+
+    
+    # 15
+    # Handle SELECT AVG(column_name) AS alias FROM table_name
+    match_avg = re.match(
+        r"SELECT\s+AVG\((\w+)\)\s+AS\s+(\w+)\s+FROM\s+(\w+);?",
+        sql_query, re.IGNORECASE
+    )
+    if match_avg:
+        column_name, alias, collection = match_avg.groups()
+        return (
+            f"db.{collection}.aggregate(["
+            f"{{ '$group': {{ '_id': null, '{alias}': {{ '$avg': '${column_name}' }} }} }}"
+            f"]);"
+        )
+    
+    
+    # 16
+    # Handle SELECT MIN(column_name) AS alias FROM table_name
+    match_min = re.match(
+        r"SELECT\s+MIN\((\w+)\)\s+AS\s+(\w+)\s+FROM\s+(\w+);?",
+        sql_query, re.IGNORECASE
+    )
+    if match_min:
+        column_name, alias, collection = match_min.groups()
+        return (
+            f"db.{collection}.aggregate(["
+            f"{{ '$group': {{ '_id': null, '{alias}': {{ '$min': '${column_name}' }} }} }}"
+            f"]);"
+        )
+    
+    
+    # 17
+    # Handle SELECT MAX(column_name) AS alias FROM table_name
+    match_max = re.match(
+        r"SELECT\s+MAX\((\w+)\)\s+AS\s+(\w+)\s+FROM\s+(\w+);?",
+        sql_query, re.IGNORECASE
+    )
+    if match_max:
+        column_name, alias, collection = match_max.groups()
+        return (
+            f"db.{collection}.aggregate(["
+            f"{{ '$group': {{ '_id': null, '{alias}': {{ '$max': '${column_name}' }} }} }}"
+            f"]);"
+        )
+    
+    # 18
+    # Handle SELECT with WHERE clause and LIKE operator
+    match_like = re.match(
+        r"SELECT\s+\*\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+LIKE\s+'%(.+)'",
+        sql_query.strip(),
+        re.IGNORECASE
+    )
+    if match_like:
+        
+        #print("%match")
+        
+        collection, field, pattern = match_like.groups()
+
+        # Convert SQL LIKE pattern to MongoDB regex (only handle prefix match here)
+        mongo_regex = pattern.rstrip('%')  # Remove trailing '%' for starts-with regex
+
+        return (
+            # f"db.{collection}.find({{ {field}: {{ $regex: \"{mongo_regex}$\" }} }});"
+            f"db.{collection}.aggregate([{{ $match: {{ {field}: {{ $regex: \"{mongo_regex}$\" }} }} }}]);"
+        )
+    
+    
+    # 19
+    # Handle SELECT with WHERE clause and LIKE operator
+    match_like = re.match(
+        r"SELECT\s+\*\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+LIKE\s+'(.+)%'",
+        sql_query.strip(),
+        re.IGNORECASE
+    )
+    if match_like:
+        
+        #print("match%")
+        
+        collection, field, pattern = match_like.groups()
+
+        # Convert SQL LIKE pattern to MongoDB regex (only handle prefix match here)
+        mongo_regex = pattern.rstrip('%')  # Remove trailing '%' for starts-with regex
+
+        return (
+            # f"db.{collection}.find({{ {field}: {{ $regex: \"^{mongo_regex}\" }} }});")
+            f"db.{collection}.aggregate([{{ $match: {{ {field}: {{ $regex: \"^{mongo_regex}\" }} }} }}]);")
+    
+    
+    # 20
+    # Handle SELECT COUNT(*) FROM table_name WHERE column_name LIKE '%value%'
+    match_count_like = re.match(
+        r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+LIKE\s+'%(.+?)%';?",
+        sql_query, re.IGNORECASE
+    )
+    if match_count_like:
+        collection, column_name, regex_pattern = match_count_like.groups()
+        # Convert SQL LIKE pattern to MongoDB regex
+        #regex_pattern = pattern.replace('%', '.*')
+        return (
+            f"db.{collection}.aggregate(["
+            f"{{ '$match': {{ '{column_name}': {{ '$regex': '.*{regex_pattern}.*' }} }} }},"
+            f"{{ '$count': 'total_count' }}"
+            f"]);"
+        )
+    
+    
+    # 21
+    # Handle SELECT COUNT(*) FROM table_name WHERE column_name LIKE '%value'
+    match_count_like = re.match(
+        r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+LIKE\s+'%(.+?)';?",
+        sql_query, re.IGNORECASE
+    )
+    if match_count_like:
+        collection, column_name, regex_pattern = match_count_like.groups()
+        # Convert SQL LIKE pattern to MongoDB regex
+        #regex_pattern = pattern.replace('%', '.*')
+        return (
+            f"db.{collection}.aggregate(["
+            f"{{ '$match': {{ '{column_name}': {{ '$regex': '{regex_pattern}$' }} }} }},"
+            f"{{ '$count': 'total_count' }}"
+            f"]);"
+        )
+
+    
+    # 22
+    # Handle SELECT COUNT(*) FROM table_name WHERE column_name LIKE '%value'
+    match_count_like = re.match(
+        r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+LIKE\s+'(.+?)%';?",
+        sql_query, re.IGNORECASE
+    )
+    if match_count_like:
+        collection, column_name, regex_pattern = match_count_like.groups()
+        # Convert SQL LIKE pattern to MongoDB regex
+        #regex_pattern = pattern.replace('%', '.*')
+        return (
+            f"db.{collection}.aggregate(["
+            f"{{ '$match': {{ '{column_name}': {{ '$regex': '^{regex_pattern}' }} }} }},"
+            f"{{ '$count': 'total_count' }}"
+            f"]);"
+        )
+    
+    # 23
+    # Handle SELECT MAX(column_name) - MIN(column_name) FROM table_name
+    match_max_min_diff = re.match(
+        r"SELECT\s+MAX\((\w+)\)\s*-\s*MIN\(\1\)\s+FROM\s+(\w+);?$",
+        sql_query, 
+        re.IGNORECASE
+    )
+    if match_max_min_diff:
+        column_name, collection = match_max_min_diff.groups()
+        return (
+            f"db.{collection}.aggregate(["
+            f"{{ '$group': {{ '_id': null, 'max_value': {{ '$max': '${column_name}' }}, 'min_value': {{ '$min': '${column_name}' }} }} }},"
+            f"{{ '$project': {{ '_id': 0, 'difference': {{ '$subtract': [ '$max_value', '$min_value' ] }} }} }}"
+            f"]);"
+        )
+
+    
+    # 24 
+    
+    # Handle SELECT COUNT(*) FROM table_name WHERE column_name IS NULL
+    match_count_is_null = re.match(
+        r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+IS\s+NULL;?$",
+        sql_query, 
+        re.IGNORECASE
+    )
+    if match_count_is_null:
+        collection, column_name = match_count_is_null.groups()
+        return (
+            f"db.{collection}.aggregate(["
+            f"{{ '$match': {{ '{column_name}': {{ '$eq': null }} }} }},"
+            f"{{ '$count': 'total_count' }}"
+            f"]);"
+        )
+    
+    # 25 
+    # Handle SELECT COUNT(*) FROM table_name WHERE column_name IS NULL
+    match_count_is_null = re.match(
+        r"SELECT\s+COUNT\(\*\)\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s+IS\s+NOT NULL;?$",
+        sql_query, 
+        re.IGNORECASE
+    )
+    if match_count_is_null:
+        collection, column_name = match_count_is_null.groups()
+        return (
+            f"db.{collection}.aggregate(["
+            f"{{ '$match': {{ '{column_name}': {{ '$exists': true, '$ne': null }} }} }},"
+            f"{{ '$count': 'total_count' }}"
+            f"]);"
+        )
     
     # TEMPLATES FOR JOINS
     
@@ -806,6 +1053,100 @@ def sql_to_mongo(sql_query):
             f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{local_field}', 'foreignField': '{foreign_field}', 'as': '{collection2}' }} }},"
             f"{{ '$unwind': '${collection2}' }},"
             f"{{ '$match': {{ '{filter_field_name}': {filter_value} }} }},"
+            f"{{ '$project': {{ '{select_field1_name}': 1, '{select_field2_name}': '${collection2}.{select_field2_name}' }} }}"
+            f"]);"
+        )
+        
+    #2
+    # Handle SELECT with JOIN and WHERE IN
+    match_join_in = re.match(
+        r"SELECT\s+([\w.,\s]+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)\s+WHERE\s+(\w+)\s+IN\s+\((.+?)\);?",
+        sql_query,
+        re.IGNORECASE
+    )
+    if match_join_in:
+        select_fields, collection1, collection2, table1, key1, table2, key2, filter_column, in_values = match_join_in.groups()
+        
+        # Parse fields for projection
+        fields = [field.strip() for field in select_fields.split(",")]
+        projection = {field.split(".")[1]: f"${field.split('.')[1]}" for field in fields}
+
+        # Parse values for the IN clause
+        in_values = [value.strip().strip("'") for value in in_values.split(",")]
+
+        return (
+            f"db.{collection1}.aggregate(["
+            f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{key1}', 'foreignField': '{key2}', 'as': 'joined_data' }} }},"
+            f"{{ '$unwind': '$joined_data' }},"
+            f"{{ '$match': {{ '{filter_column}': {{ '$in': {in_values} }} }} }},"
+            f"{{ '$project': {projection} }}"
+            f"]);"
+        )
+    
+    
+    
+    # 3
+    # Template to handle SELECT with JOIN and WHERE clause using "not equal to" condition
+    match_join_not_equal = re.match(
+        r"SELECT\s+(\w+\.\w+),\s+(\w+\.\w+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+\.\w+)\s*=\s*(\w+\.\w+)\s+WHERE\s+(\w+)\s*!=\s*('?)(.+?)\8",
+        sql_query.strip(),
+        re.IGNORECASE
+    )
+    if match_join_not_equal:
+        select_field1, select_field2, collection1, collection2, join_field1, join_field2, filter_field, _, filter_value = match_join_not_equal.groups()
+
+        # Convert numeric filter values to integers if applicable
+        try:
+            filter_value = int(filter_value)
+        except ValueError:
+            filter_value = f'"{filter_value}"'  # Use double quotes for strings
+
+        # Handle splitting fields
+        local_field = join_field1.split('.')[1] if '.' in join_field1 else join_field1
+        foreign_field = join_field2.split('.')[1] if '.' in join_field2 else join_field2
+        filter_field_name = filter_field.split('.')[1] if '.' in filter_field else filter_field
+        select_field1_name = select_field1.split('.')[1] if '.' in select_field1 else select_field1
+        select_field2_name = select_field2.split('.')[1] if '.' in select_field2 else select_field2
+
+        return (
+            f"db.{collection1}.aggregate(["
+            f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{local_field}', 'foreignField': '{foreign_field}', 'as': '{collection2}' }} }},"
+            f"{{ '$unwind': '${collection2}' }},"
+            f"{{ '$match': {{ '{filter_field_name}': {{ '$ne': {filter_value} }} }} }},"
+            f"{{ '$project': {{ '{select_field1_name}': 1, '{select_field2_name}': '${collection2}.{select_field2_name}' }} }}"
+            f"]);"
+        )
+    
+    #4
+    
+     # Handle SELECT with JOIN and multiple WHERE conditions
+    match_join_where = re.match(
+        r"SELECT\s+(\w+\.\w+),\s+(\w+\.\w+)\s+FROM\s+(\w+)\s+JOIN\s+(\w+)\s+ON\s+(\w+\.\w+)\s*=\s*(\w+\.\w+)\s+WHERE\s+(\w+)\s*>\s*(\d+)\s+AND\s+(\w+)\s+LIKE\s+'(.+?)';?",
+        sql_query,
+        re.IGNORECASE
+    )
+    if match_join_where:
+        select_field1, select_field2, collection1, collection2, join_field1, join_field2, filter_field1, filter_value1, filter_field2, filter_value2 = match_join_where.groups()
+
+        # Convert LIKE pattern to MongoDB regex
+        regex_pattern = filter_value2.replace('%', '.*')
+
+        # Handle splitting fields
+        local_field = join_field1.split('.')[1] if '.' in join_field1 else join_field1
+        foreign_field = join_field2.split('.')[1] if '.' in join_field2 else join_field2
+        filter_field1_name = filter_field1.split('.')[1] if '.' in filter_field1 else filter_field1
+        filter_field2_name = filter_field2.split('.')[1] if '.' in filter_field2 else filter_field2
+        select_field1_name = select_field1.split('.')[1] if '.' in select_field1 else select_field1
+        select_field2_name = select_field2.split('.')[1] if '.' in select_field2 else select_field2
+
+        return (
+            f"db.{collection1}.aggregate(["
+            f"{{ '$lookup': {{ 'from': '{collection2}', 'localField': '{local_field}', 'foreignField': '{foreign_field}', 'as': '{collection2}' }} }},"
+            f"{{ '$unwind': '${collection2}' }},"
+            f"{{ '$match': {{ "
+            f"    '{filter_field1_name}': {{ '$gt': {int(filter_value1)} }}, "
+            f"    '{collection2}.{filter_field2_name}': {{ '$regex': '{regex_pattern}', '$options': 'i' }} "
+            f"}} }},"
             f"{{ '$project': {{ '{select_field1_name}': 1, '{select_field2_name}': '${collection2}.{select_field2_name}' }} }}"
             f"]);"
         )
