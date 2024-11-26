@@ -487,7 +487,7 @@ def get_sample_queries():
 
     # Generate queries based on the operation
     sample_queries = generate_sample_queries(schema, operation=operation, db = db)
-    print(sample_queries)
+    # print(sample_queries)
     # Return the queries as JSON
     return jsonify({"queries": [{"description": desc, "sql": sql} for desc, sql in sample_queries]})
 

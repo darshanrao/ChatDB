@@ -3,6 +3,8 @@ import json
 import random
 from rex import QueryER
 from regex import *
+from string import Template
+
 
 def extract_mongo_query(query_str):
     """
@@ -394,7 +396,7 @@ def generate_sample_queries(schema, operation=None, db='sql'):
                 description = nl_templates["exists"].format(table=table)
                 sample_queries.append((description, query))
 
-            elif operation is None:  # Basic query
+            elif operation == "mysql":  # Basic query
                 query = query_templates["basic"].format(table=table)
                 description = nl_templates["basic"].format(table=table)
                 sample_queries.append((description, query))
@@ -404,14 +406,14 @@ def generate_sample_queries(schema, operation=None, db='sql'):
         sample_queries = []
         
         query_templates = {
-            "aggregate": '[{"$group": {"_id": "${categorical}", "total": {"$sum": "$${quantitative}"}}}]',
-            "find": '[{"$match": {"${column}": "${value}"}}]',
+            "aggregate": '[{"$group": {"_id": "$${categorical}", "total": {"$sum": "$${quantitative}"}}}]',
+            "find": '{"$match": {"${column}": "${value}"}}',
             "count": '[{"$count": "total"}]',
             "distinct": '[{"$distinct": "${column}"}]',
             "limit": '[{"$limit": "${number}"}]',
-            "update": '[{"$set": {"${column}": "${value}"}}]',
-            "delete": '[{"$delete": {"${column}": "${value}"}}]',
-            'group by': '[{"$group": {"_id": "$${categorical}", "count": {"$sum": 1}}}]',
+            "update": '{"$set": {"${column}": "${value}"}}',
+            "delete": '{"$delete": {"${column}": "${value}"}}',
+            "group by": '[{"$group": {"_id": "$${categorical}", "count": {"$sum": 1}}}]',
         }
         
         nl_templates = {
@@ -430,76 +432,60 @@ def generate_sample_queries(schema, operation=None, db='sql'):
             categorical_columns = [col["name"] for col in columns if col["type"] in ["string", "varchar", "text"]]
 
             if operation == "group by" and quantitative_columns and categorical_columns:
-                query = query_templates["group by"].format(
-                    categorical=random.choice(categorical_columns),
-                )
+                query = query_templates["group by"].replace('${categorical}', random.choice(categorical_columns))
+
                 description = nl_templates["group by"].format(
                     categorical=random.choice(categorical_columns),
                 )
                 sample_queries.append((description, query))
 
             elif operation == "aggregate" and quantitative_columns:
-                query = query_templates["aggregate"].format(
-                    quantitative=random.choice(quantitative_columns),
-                    categorical=random.choice(categorical_columns),
-                    table=table
-                )
+                query = query_templates["aggregate"].replace("${categorical}", random.choice(categorical_columns))
+                query = query.replace("${quantitative}", random.choice(quantitative_columns))
                 description = nl_templates["aggregate"].format(
                     quantitative=random.choice(quantitative_columns),
                     categorical=random.choice(categorical_columns),
-                    table=table
                 )
                 sample_queries.append((description, query))
 
             elif operation == "count":
-                query = query_templates["count"].format(table=table)
-                description = nl_templates["count"].format(table=table)
+                query = query_templates["count"]
+                description = nl_templates["count"]
                 sample_queries.append((description, query))
 
             elif operation == "distinct" and categorical_columns:
-                query = query_templates["distinct"].format(
-                    column=random.choice(categorical_columns),
-                    table=table
-                )
+                query = query_templates["distinct"].replace("${column}", random.choice(categorical_columns))
+                
                 description = nl_templates["distinct"].format(
                     column=random.choice(categorical_columns),
-                    table=table
                 )
                 sample_queries.append((description, query))
 
             elif operation == "limit":
-                query = query_templates["limit"].format(table=table, number=10)
-                description = nl_templates["limit"].format(table=table, number=10)
+                query = query_templates["limit"].replace("${number}", "10")
+                description = nl_templates["limit"].format( number=10)
                 sample_queries.append((description, query))
 
             elif operation == "update" and categorical_columns:
-                query = query_templates["update"].format(
-                    column=random.choice(categorical_columns),
-                    value=random.randint(1, 100),
-                    table=table
-                )
+                query = query_templates["update"].replace("${column}", random.choice(categorical_columns))
+                query = query.replace("${value}", random.randint(1, 100))
                 description = nl_templates["update"].format(
                     column=random.choice(categorical_columns),
                     value=random.randint(1, 100),
-                    table=table
                 )
                 sample_queries.append((description, query))
 
             elif operation == "delete" and categorical_columns:
-                query = query_templates["delete"].format(
-                    column=random.choice(categorical_columns),
-                    value=random.choice(['value1', 'value2']),
-                    table=table
-                )
+                query = query_templates["delete"].replace("${column}", random.choice(categorical_columns))
+                query = query.replace("${value}", random.choice(['value1', 'value2']))
                 description = nl_templates["delete"].format(
                     column=random.choice(categorical_columns),
                     value=random.choice(['value1', 'value2']),
-                    table=table
                 )
                 sample_queries.append((description, query))
 
-            elif operation is None:
-                query = query_templates["find"].format(table=table, column="name", value="John")
+            elif operation == "mongodb":
+                query = query_templates["find"].replace("${column}", "name").replace("${value}", "John")
                 description = nl_templates["find"].format(column="name", value="John")
                 sample_queries.append((description, query))
 
