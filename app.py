@@ -73,11 +73,11 @@ def create_and_use_database(db_name):
 
 """
 curl -X POST \
-  -F "db_name=database2" \
-  -F "files=@data/courses.csv" \
-  -F "files=@data/enrollments.csv" \
-  -F "files=@data/students.csv" \
-  http://127.0.0.1:5000/api/upload-mysql
+  -F "db_name=school" \
+  -F "files=@school/courses.csv" \
+  -F "files=@school/enrollments.csv" \
+  -F "files=@school/students.csv" \
+  http://127.0.0.1:8080/api/upload-mysql
 """
 @app.route('/api/upload-mysql', methods=['POST'])
 def upload_to_rds():
@@ -109,7 +109,7 @@ def upload_to_rds():
                 continue
 
             try:
-                table_name = file.filename.rsplit('.', 1)[0]
+                table_name = os.path.basename(file.filename).rsplit('.', 1)[0]
                 df = pd.read_csv(io.StringIO(file.stream.read().decode("UTF8")))
 
                 columns = []
@@ -313,7 +313,7 @@ def upload_data():
                 continue
 
             try:
-                collection_name = file.filename.rsplit('.', 1)[0]
+                collection_name = os.path.basename(file.filename).rsplit('.', 1)[0]
                 csv_data = pd.read_csv(io.StringIO(file.stream.read().decode("UTF8")))
                 records = csv_data.to_dict('records')
 
