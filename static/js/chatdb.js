@@ -6,7 +6,7 @@ const mysqlTab = document.getElementById('mysqlTab');
 const mongodbTab = document.getElementById('mongodbTab');
 
 let activeTab = 'mysql'; 
-let currDatabase = 'database2';
+let currDatabase = 'school';
 
 function switchTab(selectedTab) {
     if (selectedTab === 'mysql') {
