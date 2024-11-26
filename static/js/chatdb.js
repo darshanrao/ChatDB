@@ -186,19 +186,37 @@ uploadFileInput.addEventListener('change', async () => {
   addMessage(`Processing folder "${dbName}" with ${csvCount} CSV files...`, 'bot-message');
 
   try {
-    const response = await fetch('api/upload-mongodb', {
-      method: 'POST',
-      body: formData,
-    });
+    if (activeTab == 'mongodb') {
+      const response = await fetch('api/upload-mongodb', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to upload files');
+      }
 
-    if (!response.ok) {
-      throw new Error('Failed to upload files');
+      const data = await response.json();
+      addMessage(data.message || `Successfully uploaded ${csvCount} tables to database "${dbName}"`, 'bot-message');
     }
 
-    const data = await response.json();
-    addMessage(data.message || `Successfully uploaded ${csvCount} tables to database "${dbName}"`, 'bot-message');
+    else {
+      const response = await fetch('api/upload-mysql', {
+        method: 'POST',
+        body: formData,
+        });
+      
+      if (!response.ok) {
+        throw new Error('Failed to upload files');
+      }
+
+      const data = await response.json();
+      addMessage(data.message || `Successfully uploaded ${csvCount} tables to database "${dbName}"`, 'bot-message');
+
+  }
   } catch (err) {
     addMessage(`Error: Could not upload tables to database "${dbName}".`, 'bot-message');
     console.error(err);
   }
+
 });
