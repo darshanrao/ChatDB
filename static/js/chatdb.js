@@ -40,6 +40,7 @@ sendBtn.addEventListener('click', () => {
       addMessage(query, 'user-message');
       currDatabase = match[1]; 
       addMessage(`Switched to database: ${currDatabase}`, 'bot-message');
+      userInput.value = '';
       return; 
   }
 
