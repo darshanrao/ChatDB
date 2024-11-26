@@ -454,6 +454,43 @@ def get_schema(db_name):
         }), 500
 
 
+@app.route('/api/sample-queries', methods=['POST'])
+def get_sample_queries():
+    data = request.get_json()
+    operation = data.get("operation", None)
+    db = data.get("db", 'mysql')
+    schema = {
+        "courses": [ 
+            {"name": "CourseID", "type":"int"} ,
+            {"name": "CourseName", "type":"string"}, 
+            {"name": "InstructorID", "type":"int"}, 
+            {"name": "InstructorName", "type":"string"},
+            {"name": "CreditHours", "type":"int"} ],
+        
+        "enrollments": [
+            {"name": "EnrollmentID", "type":"int"},
+            {"name": "StudentID", "type":"int"},
+            {"name": "CourseID", "type":"int"},
+            {"name": "Semester", "type":"int"},
+            {"name": "Grade", "type":"string"}  ],
+        
+        "students": [
+            {"name": "StudentID", "type":"int"},
+            {"name": "FirstName", "type":"string"},
+            {"name": "LastName", "type":"string"},
+            {"name": "Email", "type":"string"},
+            {"name": "Major", "type":"string"},
+            {"name": "AdvisorID", "type":"int"},
+            {"name": "AdvisorName", "type":"string"} ]
+    }
+    
+
+    # Generate queries based on the operation
+    sample_queries = generate_sample_queries(schema, operation=operation, db = db)
+    print(sample_queries)
+    # Return the queries as JSON
+    return jsonify({"queries": [{"description": desc, "sql": sql} for desc, sql in sample_queries]})
+
 from flask import Flask, jsonify, request, render_template        
 @app.route('/')
 def index():

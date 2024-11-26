@@ -33,17 +33,40 @@ sendBtn.addEventListener('click', () => {
   const useDatabaseRegex = /^USE DATABASE\s+['"]?([\w-]+)['"]?;?$/i;
   const match = query.match(useDatabaseRegex);
 
+  const sampleQueryRegex = /sample queries(?: for)?\s+(.*)/i;
+  const match2 = query.match(sampleQueryRegex);
+
   if (match) {
       addMessage(query, 'user-message');
       currDatabase = match[1]; 
       addMessage(`Switched to database: ${currDatabase}`, 'bot-message');
-      userInput.value = '';
       return; 
   }
+
+  else if (match2) {
+    const operation = match2[1].trim().toLowerCase(); 
+    console.log(`Detected operation: ${operation}`);
+    addMessage(query, 'user-message');
+    fetch("/api/sample-queries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operation: operation, db: activeTab })
+    })
+        .then(response => response.json())
+        .then(data => {
+          console.log("response recieved", data);
+            const exampleQueries = data.queries;
+            exampleQueries.forEach(({ description, sql }) => {
+                addMessage(`Description: ${description} \n Query: ${sql}`, "bot-message");
+            });
+        })
+        .catch(err => addMessage("Error: Could not fetch sample queries.", "bot-message"));
+    }
+
   else {
     try {        
         addMessage(query, 'user-message');
-        userInput.value = '';
+        // userInput.value = '';
         if (activeTab == 'mysql') {
         fetch('/api/query-mysql', {
             method: 'POST',
@@ -54,7 +77,6 @@ sendBtn.addEventListener('click', () => {
         .then(response => response.json())
         .then(data => {
             addMessage( data.query, 'bot-message');
-            console.log(data)
             displayTable(data.results);
         })
         .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));
@@ -69,7 +91,6 @@ sendBtn.addEventListener('click', () => {
         .then(response => response.json())
         .then(data => {
             addMessage(data.query, 'bot-message');
-            console.log(data)
             displayTable(data.results);
         })
         .catch(err => addMessage('Error: Could not fetch response.', 'bot-message'));
@@ -78,6 +99,8 @@ sendBtn.addEventListener('click', () => {
         addMessage('Error: Please provide a valid JSON query format.', 'bot-message');
     }
   }
+  userInput.value = '';
+
 });
 
 function addMessage(text, className) {
