@@ -247,7 +247,7 @@ def get_mysql_schema(db_name):
             print("MySQL connection closed")
 
 """
-curl -X GET http://127.0.0.1:5000/api/get-mysql-schema/database2
+curl -X GET http://127.0.0.1:8080/api/get-mysql-schema/school
 """            
 @app.route('/api/get-mysql-schema/<db_name>', methods=['GET'])
 def get_mysql_schema_route(db_name):
