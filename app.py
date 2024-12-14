@@ -24,7 +24,7 @@ app = Flask(__name__,
 )
 CORS(app)
 
-globalOption=1
+globalOption=0
 
 
 
