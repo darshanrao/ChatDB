@@ -1,7 +1,7 @@
 import re
 import json
 import random
-from rex1 import QueryER
+from gemini import QueryER
 from regex import *
 from string import Template
 

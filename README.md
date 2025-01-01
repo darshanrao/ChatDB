@@ -1,9 +1,10 @@
-# ChatDB
+# ChatDB AI
 
 ChatDB is an intuitive application designed to simplify working with relational data. It allows users to:  
 
 - Upload relational data in CSV format to **MongoDB** (stored as collections) or **Amazon RDS**.  
-- Query the uploaded data using **human-like queries** that are translated into corresponding SQL or MongoDB queries by the backend.  
+- Query the uploaded data using **human-like queries** that are translated into corresponding SQL or MongoDB queries by the backend.
+- Uses Gemini 1.5 Flash LLM  to generate the queries  
 - View query results in a tabular format on the dashboard.  
 
 ---
@@ -51,6 +52,8 @@ ChatDB is an intuitive application designed to simplify working with relational 
    RDS_PORT=3306
    RDS_USER=<rds_user>
    RDS_PASSWORD=<rds_password>
+
+   API_KEY="GeminiAPIKey"
    ```
 5. Start the application:  
    ```bash
