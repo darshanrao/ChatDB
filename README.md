@@ -1,5 +1,7 @@
 # ChatDB AI
 
+![image](https://github.com/user-attachments/assets/08cf653f-f1f7-4f57-be80-105f403ace28)
+
 ChatDB is an intuitive application designed to simplify working with relational data. It allows users to:  
 
 - Upload relational data in CSV format to **MongoDB** (stored as collections) or **Amazon RDS**.  
