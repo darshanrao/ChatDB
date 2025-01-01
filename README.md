@@ -95,7 +95,7 @@ ChatDB is an intuitive application designed to simplify working with relational 
   - MongoDB Atlas  
   - Amazon RDS (MySQL-compatible)  
 - **Frontend**: HTML, CSS, JavaScript  
-- **Query Translation**: Regex-based NLP logic for human-like query conversion  
+- **Query Translation**: Regex-based NLP logic for human-like query conversion OR Generated Using Gemini By Few Shot Prompting Method
 
 ---
 
@@ -105,7 +105,8 @@ ChatDB is an intuitive application designed to simplify working with relational 
   - Set up the backend architecture.  
   - Developed and integrated algorithms for handling queries.  
   - Implemented API calls for communication between the frontend and backend.  
-  - Configured and managed Amazon RDS and MongoDB connections.  
+  - Configured and managed Amazon RDS and MongoDB connections.
+  - Added the Query Generation using Gemini Using Few-Shot Prompting  
 
 - **Shardul Datar**  
   - Designed and developed the interactive user interface using HTML, CSS, and JavaScript.  
